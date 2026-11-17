@@ -44,6 +44,7 @@ export function VenuePlanPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [selected, setSelected] = useState<{ kind: Kind; id: string } | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const selectedKeysRef = useRef<string[]>([]);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridVisible, setGridVisible] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -89,7 +90,8 @@ export function VenuePlanPage() {
 
   const area = useMemo(() => venue ? venue.width_mm * venue.height_mm / 1_000_000 : 0, [venue]);
   function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
-  function startCreate(kind: Kind) { setError(""); setDrawingWall(false); setWallDraft(null); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
+  function updateSelectedKeys(keys:string[]){selectedKeysRef.current=keys;setSelectedKeys(keys);}
+  function startCreate(kind: Kind) { setError(""); setDrawingWall(false); setWallDraft(null); setSelected(null); updateSelectedKeys([]); setForm(blankForm(kind)); }
   function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return;
     const handleTarget = (event.target as Element).closest<SVGElement>("[data-handle][data-kind][data-id]");
@@ -113,7 +115,7 @@ export function VenuePlanPage() {
         const opening=openings.find(value=>value.id===id); if(!opening)return;
         handleGestureRef.current={pointerId:event.pointerId,mode:handle==="rotate"?"rotate-opening":"resize-opening",kind,id,start:initialPointer,initialPointer,opening};
       }
-      setSelected({kind,id}); setSelectedKeys([keyOf(kind,id)]); svgRef.current.setPointerCapture(event.pointerId); return;
+      setSelected({kind,id}); updateSelectedKeys([keyOf(kind,id)]); svgRef.current.setPointerCapture(event.pointerId); return;
     }
     const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
     if (!target) {
@@ -129,8 +131,9 @@ export function VenuePlanPage() {
     const kind = target.dataset.kind as Kind; const id = target.dataset.id;
     if (!id || !["wall", "opening", "obstacle", "structure"].includes(kind)) return;
     const key = keyOf(kind, id);
-    const next = event.ctrlKey || event.metaKey ? (selectedKeys.includes(key) ? selectedKeys.filter(value => value !== key) : [...selectedKeys, key]) : selectedKeys.includes(key) ? selectedKeys : [key];
-    setSelectedKeys(next); setSelected({ kind, id });
+    const currentKeys=selectedKeysRef.current;
+    const next = event.ctrlKey || event.metaKey ? (currentKeys.includes(key) ? currentKeys.filter(value => value !== key) : [...currentKeys, key]) : currentKeys.includes(key) ? currentKeys : [key];
+    updateSelectedKeys(next); setSelected({ kind, id });
     if (event.ctrlKey || event.metaKey) return;
     const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
     const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
@@ -529,7 +532,7 @@ export function VenuePlanPage() {
         </svg></div>
         <div className="plan-legend"><span><i className="legend-wall"/> Paredes</span><span><i className="legend-opening"/> Aberturas</span><span><i className="legend-obstacle"/> Obstáculos</span><span><i className="legend-structure"/> Estruturas</span></div>
       </section>
-      <aside className="plan-tools"><div className="plan-tools-title"><Layers3 size={16}/> ELEMENTOS DO ESPAÇO</div>
+      <aside className="plan-tools"><div className="plan-tools-title"><Layers3 size={16}/> ELEMENTOS DO ESPAÇO {selectedKeys.length>1&&<small>{selectedKeys.length} selecionados</small>}</div>
         <div className="plan-add-grid">
           <button onClick={()=>startCreate("wall")}><Plus size={14}/> Parede</button><button onClick={()=>startCreate("opening")}><DoorOpen size={14}/> Abertura</button><button onClick={()=>startCreate("obstacle")}><AlertTriangle size={14}/> Obstáculo</button><button onClick={()=>startCreate("structure")}><Square size={14}/> Estrutura</button>
         </div>
