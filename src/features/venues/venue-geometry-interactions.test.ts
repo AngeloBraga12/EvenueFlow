@@ -23,7 +23,7 @@ describe("venue geometry interactions", () => {
 
   it("resizes rotated geometry in its local coordinate system", () => {
     const rect = makeSpatialRect(1000, 1000, 2000, 1000, 45);
-    const resized = resizeRotatedRect(rect, "se", {x_mm:500,y_mm:500});
+    const resized = resizeRotatedRect(rect, "se", {x_mm:0,y_mm:700});
     expect(resized.width_mm).toBeGreaterThan(2000);
     expect(resized.height_mm).toBeGreaterThan(1000);
     expect(rectCorners(resized)).toHaveLength(4);
