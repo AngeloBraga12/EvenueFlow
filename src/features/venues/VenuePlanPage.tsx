@@ -40,6 +40,9 @@ export function VenuePlanPage() {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridVisible, setGridVisible] = useState(true);
   const [zoom, setZoom] = useState(1);
+  const [drawingWall, setDrawingWall] = useState(false);
+  const [wallDraft, setWallDraft] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const wallStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; ids: string[] } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -74,8 +77,18 @@ export function VenuePlanPage() {
   function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
   function startCreate(kind: Kind) { setError(""); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
   function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
+    if (!svgRef.current) return;
     const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
-    if (!target || !svgRef.current) return;
+    if (!target) {
+      if (!drawingWall || !venue) return;
+      const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+      const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
+      const local = point.matrixTransform(matrix.inverse()); const step = snapEnabled ? 100 : 1;
+      const x = Math.max(0, Math.min(venue.width_mm, Math.round(local.x / step) * step));
+      const y = Math.max(0, Math.min(venue.height_mm, Math.round(local.y / step) * step));
+      wallStartRef.current = { pointerId: event.pointerId, x, y }; setWallDraft({ x1:x, y1:y, x2:x, y2:y });
+      svgRef.current.setPointerCapture(event.pointerId); return;
+    }
     const kind = target.dataset.kind as Kind; const id = target.dataset.id;
     if (!id || !["wall", "opening", "obstacle", "structure"].includes(kind)) return;
     const key = keyOf(kind, id);
@@ -88,7 +101,15 @@ export function VenuePlanPage() {
     dragRef.current = { pointerId: event.pointerId, startX: local.x, startY: local.y, ids: next.length ? next : [key] };
     svgRef.current.setPointerCapture(event.pointerId);
   }
-  function canvasPointerMove(event: React.PointerEvent<SVGSVGElement>) {
+  function canvasPointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (wallStartRef.current?.pointerId === event.pointerId && svgRef.current && venue) {
+      const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+      const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
+      const local = point.matrixTransform(matrix.inverse()); const step = snapEnabled ? 100 : 1;
+      const x = Math.max(0, Math.min(venue.width_mm, Math.round(local.x / step) * step));
+      const y = Math.max(0, Math.min(venue.height_mm, Math.round(local.y / step) * step));
+      setWallDraft({ x1:wallStartRef.current.x, y1:wallStartRef.current.y, x2:x, y2:y }); return;
+    }
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId || !svgRef.current) return;
     const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
     const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
@@ -98,6 +119,16 @@ export function VenuePlanPage() {
     setDragDelta({ x, y });
   }
   async function finishCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+    if (wallStartRef.current?.pointerId === event.pointerId) {
+      const start = wallStartRef.current; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
+      if (venue && draft && (draft.x1 !== draft.x2 || draft.y1 !== draft.y2)) {
+        setSaving(true);
+        const result = await supabase.from("venue_walls").insert({ venue_id:venue.id, start_x_mm:start.x, start_y_mm:start.y, end_x_mm:draft.x2, end_y_mm:draft.y2, thickness_mm:150, height_mm:null, metadata:{label:"Parede"} as Json });
+        setSaving(false);
+        if (result.error) setError("Não foi possível criar a parede. Verifique sua permissão."); else { setDrawingWall(false); await load(); }
+      }
+      return;
+    }
     if (!venue) return;
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null; const delta = dragDelta; setDragDelta({ x: 0, y: 0 });
@@ -221,12 +252,13 @@ export function VenuePlanPage() {
     <header className="plan-header"><Link to="/app/saloes" className="plan-back"><ArrowLeft size={16}/> Salões</Link><div><span className="eyebrow">EDITOR DE ESPAÇO · P0</span><h1>{venue.name}</h1><p>{mm(venue.width_mm)} × {mm(venue.height_mm)} m · {area.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²</p></div><span className="plan-unit"><Ruler size={14}/> UNIDADE: MM</span></header>
     {error && <div className="plan-alert" role="alert"><AlertTriangle size={16}/>{error}</div>}
     <div className="plan-workspace">
-      <section className="plan-canvas-panel"><div className="plan-canvas-head"><div><span className="eyebrow">PLANTA BAIXA</span><strong>Arraste para mover · Ctrl/clique para seleção múltipla</strong></div><div className="plan-canvas-actions"><button type="button" title="Encaixe em grade" aria-pressed={snapEnabled} className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled(value => !value)}><Magnet size={14}/> Encaixe</button><button type="button" title="Mostrar ou ocultar grade" aria-pressed={gridVisible} className={gridVisible ? "active" : ""} onClick={() => setGridVisible(value => !value)}><Grid3X3 size={14}/> Grade</button><button type="button" title="Diminuir zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14}/></button><span>{Math.round(zoom * 100)}%</span><button type="button" title="Aumentar zoom" onClick={() => setZoom(value => Math.min(2, Number((value + .1).toFixed(1))))}><ZoomIn size={14}/></button><span>{walls.length + openings.length + obstacles.length + structures.length} elementos</span></div></div>
+      <section className="plan-canvas-panel"><div className="plan-canvas-head"><div><span className="eyebrow">PLANTA BAIXA</span><strong>Arraste para mover · Ctrl/clique para seleção múltipla</strong></div><div className="plan-canvas-actions"><button type="button" title="Desenhar parede" aria-pressed={drawingWall} className={drawingWall ? "active" : ""} onClick={() => { setDrawingWall(value => !value); setWallDraft(null); setSelectedKeys([]); }}><Plus size={14}/> Parede livre</button><button type="button" title="Encaixe em grade" aria-pressed={snapEnabled} className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled(value => !value)}><Magnet size={14}/> Encaixe</button><button type="button" title="Mostrar ou ocultar grade" aria-pressed={gridVisible} className={gridVisible ? "active" : ""} onClick={() => setGridVisible(value => !value)}><Grid3X3 size={14}/> Grade</button><button type="button" title="Diminuir zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14}/></button><span>{Math.round(zoom * 100)}%</span><button type="button" title="Aumentar zoom" onClick={() => setZoom(value => Math.min(2, Number((value + .1).toFixed(1))))}><ZoomIn size={14}/></button><span>{walls.length + openings.length + obstacles.length + structures.length} elementos</span></div></div>
         <div className="plan-canvas-wrap"><svg ref={svgRef} className="venue-svg" viewBox={`${-500 + venue.width_mm * (1 - 1 / zoom) / 2} ${-500 + venue.height_mm * (1 - 1 / zoom) / 2} ${(venue.width_mm + 1000) / zoom} ${(venue.height_mm + 1000) / zoom}`} role="img" aria-label={`Planta técnica de ${venue.name}`} onPointerDown={beginCanvasDrag} onPointerMove={canvasPointerMove} onPointerUp={finishCanvasDrag} onPointerCancel={finishCanvasDrag}>
           <defs><pattern id={patternId} width="500" height="500" patternUnits="userSpaceOnUse"><path d="M 500 0 L 0 0 0 500" className="svg-grid-line" fill="none"/></pattern></defs>
           {gridVisible && <rect x="-500" y="-500" width={venue.width_mm + 1000} height={venue.height_mm + 1000} fill={`url(#${patternId})`}/>}
           <rect x="0" y="0" width={venue.width_mm} height={venue.height_mm} className="svg-room"/>
           <rect x="0" y="0" width={venue.width_mm} height={venue.height_mm} className="svg-boundary"/>
+          {wallDraft && <line x1={wallDraft.x1} y1={wallDraft.y1} x2={wallDraft.x2} y2={wallDraft.y2} className="svg-wall-draft" pointerEvents="none"/>}
           {walls.map(wall=><g key={wall.id} data-kind="wall" data-id={wall.id} transform={`translate(${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.y : 0})`} className="plan-selectable"><line x1={wall.start_x_mm} y1={wall.start_y_mm} x2={wall.end_x_mm} y2={wall.end_y_mm} strokeWidth={Math.max(wall.thickness_mm,60)} className={selected?.id===wall.id?"svg-wall svg-wall-selected":"svg-wall"}/></g>)}
           {openings.map(item=><g key={item.id} data-kind="opening" data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.y : 0})`} className="plan-selectable"><line x1={item.x_mm} y1={item.y_mm} x2={item.x_mm+item.width_mm} y2={item.y_mm} transform={`rotate(${item.rotation_deg} ${item.x_mm} ${item.y_mm})`} className={selected?.id===item.id?"svg-opening svg-opening-selected":"svg-opening"}/><text x={item.x_mm+item.width_mm/2} y={item.y_mm-100} className="svg-opening-label" textAnchor="middle">{item.opening_type==="door"?"PORTA":item.opening_type==="window"?"JANELA":item.opening_type==="emergency_exit"?"SAÍDA":"SERVIÇO"}</text></g>)}
           {obstacles.map(item=>rectShape(item,"obstacle"))}
