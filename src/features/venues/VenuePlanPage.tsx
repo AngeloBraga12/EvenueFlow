@@ -97,7 +97,8 @@ export function VenuePlanPage() {
       const current=selectedKeysRef.current;
       const next=current.includes(key)?current.filter(value=>value!==key):[...current,key];
       updateSelectedKeys(next);
-      setSelected(next.length?{kind,id}:null);
+      const fallback=next.at(-1)?.split(":") as [Kind,string]|undefined;
+      setSelected(fallback?{kind:fallback[0],id:fallback[1]}:null);
     }else if(!selectedKeysRef.current.includes(key)){
       updateSelectedKeys([key]);setSelected({kind,id});
     }
