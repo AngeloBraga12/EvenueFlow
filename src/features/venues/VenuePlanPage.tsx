@@ -1,5 +1,5 @@
 import "./plan.css";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent, type MouseEvent } from "react";
 import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop, Magnet, Grid3X3, ZoomIn, ZoomOut, Undo2, Redo2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
@@ -91,6 +91,17 @@ export function VenuePlanPage() {
   const area = useMemo(() => venue ? venue.width_mm * venue.height_mm / 1_000_000 : 0, [venue]);
   function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
   function updateSelectedKeys(keys:string[]){selectedKeysRef.current=keys;setSelectedKeys(keys);}
+  function handleElementClick(event:MouseEvent<SVGGElement>,kind:Kind,id:string){
+    const key=keyOf(kind,id);
+    if(event.ctrlKey||event.metaKey){
+      const current=selectedKeysRef.current;
+      const next=current.includes(key)?current.filter(value=>value!==key):[...current,key];
+      updateSelectedKeys(next);
+      setSelected(next.length?{kind,id}:null);
+    }else if(!selectedKeysRef.current.includes(key)){
+      updateSelectedKeys([key]);setSelected({kind,id});
+    }
+  }
   function startCreate(kind: Kind) { setError(""); setDrawingWall(false); setWallDraft(null); setSelected(null); updateSelectedKeys([]); setForm(blankForm(kind)); }
   function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return;
@@ -132,9 +143,9 @@ export function VenuePlanPage() {
     if (!id || !["wall", "opening", "obstacle", "structure"].includes(kind)) return;
     const key = keyOf(kind, id);
     const currentKeys=selectedKeysRef.current;
-    const next = event.ctrlKey || event.metaKey ? (currentKeys.includes(key) ? currentKeys.filter(value => value !== key) : [...currentKeys, key]) : currentKeys.includes(key) ? currentKeys : [key];
-    updateSelectedKeys(next); setSelected({ kind, id });
-    if (event.ctrlKey || event.metaKey) return;
+    if(event.ctrlKey||event.metaKey)return;
+    const next=currentKeys.includes(key)?currentKeys:[key];
+    updateSelectedKeys(next);setSelected({kind,id});
     const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
     const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
     const local = point.matrixTransform(matrix.inverse());
@@ -525,8 +536,8 @@ export function VenuePlanPage() {
           <rect x="0" y="0" width={venue.width_mm} height={venue.height_mm} className="svg-room"/>
           <rect x="0" y="0" width={venue.width_mm} height={venue.height_mm} className="svg-boundary"/>
           {wallDraft && <line x1={wallDraft.x1} y1={wallDraft.y1} x2={wallDraft.x2} y2={wallDraft.y2} className="svg-wall-draft" pointerEvents="none"/>}
-          {walls.map(sourceWall=>{const wall=previewWall?.id===sourceWall.id?{...sourceWall,...previewWall}:sourceWall;return <g key={wall.id} data-kind="wall" data-id={wall.id} transform={`translate(${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.y : 0})`} className="plan-selectable"><line x1={wall.start_x_mm} y1={wall.start_y_mm} x2={wall.end_x_mm} y2={wall.end_y_mm} strokeWidth={Math.max(wall.thickness_mm,60)} className={selected?.id===wall.id?"svg-wall svg-wall-selected":"svg-wall"}/>{selected?.id===wall.id&&<g className="geometry-handles"><circle cx={wall.start_x_mm} cy={wall.start_y_mm} r="125" data-kind="wall" data-id={wall.id} data-handle="start" className="geometry-handle"/><circle cx={wall.end_x_mm} cy={wall.end_y_mm} r="125" data-kind="wall" data-id={wall.id} data-handle="end" className="geometry-handle"/><circle cx={(wall.start_x_mm+wall.end_x_mm)/2-(wall.end_y_mm-wall.start_y_mm)/(Math.hypot(wall.end_x_mm-wall.start_x_mm,wall.end_y_mm-wall.start_y_mm)||1)*350} cy={(wall.start_y_mm+wall.end_y_mm)/2+(wall.end_x_mm-wall.start_x_mm)/(Math.hypot(wall.end_x_mm-wall.start_x_mm,wall.end_y_mm-wall.start_y_mm)||1)*350} r="115" data-kind="wall" data-id={wall.id} data-handle="rotate" className="geometry-rotate-handle"/></g>}</g>})}
-          {openings.map(sourceItem=>{const item=previewOpening?.id===sourceItem.id?{...sourceItem,...previewOpening}:sourceItem;return <g key={item.id} data-kind="opening" data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.y : 0}) rotate(${item.rotation_deg} ${item.x_mm} ${item.y_mm})`} className="plan-selectable"><line x1={item.x_mm} y1={item.y_mm} x2={item.x_mm+item.width_mm} y2={item.y_mm} className={selected?.id===item.id?"svg-opening svg-opening-selected":"svg-opening"}/><text x={item.x_mm+item.width_mm/2} y={item.y_mm-100} className="svg-opening-label" textAnchor="middle">{item.opening_type==="door"?"PORTA":item.opening_type==="window"?"JANELA":item.opening_type==="emergency_exit"?"SAÍDA":"SERVIÇO"}</text>{selected?.id===item.id&&<g className="geometry-handles"><circle cx={item.x_mm+item.width_mm} cy={item.y_mm} r="120" data-kind="opening" data-id={item.id} data-handle="end" className="geometry-handle"/><line x1={item.x_mm} y1={item.y_mm} x2={item.x_mm-350} y2={item.y_mm-350} className="geometry-handle-stem"/><circle cx={item.x_mm-350} cy={item.y_mm-350} r="115" data-kind="opening" data-id={item.id} data-handle="rotate" className="geometry-rotate-handle"/></g>}</g>})}
+          {walls.map(sourceWall=>{const wall=previewWall?.id===sourceWall.id?{...sourceWall,...previewWall}:sourceWall;return <g key={wall.id} data-kind="wall" data-id={wall.id} transform={`translate(${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("wall",wall.id)) ? dragDelta.y : 0})`} className="plan-selectable" onClick={event=>handleElementClick(event,"wall",wall.id)}><line x1={wall.start_x_mm} y1={wall.start_y_mm} x2={wall.end_x_mm} y2={wall.end_y_mm} strokeWidth={Math.max(wall.thickness_mm,60)} className={selected?.id===wall.id?"svg-wall svg-wall-selected":"svg-wall"}/>{selected?.id===wall.id&&<g className="geometry-handles"><circle cx={wall.start_x_mm} cy={wall.start_y_mm} r="125" data-kind="wall" data-id={wall.id} data-handle="start" className="geometry-handle"/><circle cx={wall.end_x_mm} cy={wall.end_y_mm} r="125" data-kind="wall" data-id={wall.id} data-handle="end" className="geometry-handle"/><circle cx={(wall.start_x_mm+wall.end_x_mm)/2-(wall.end_y_mm-wall.start_y_mm)/(Math.hypot(wall.end_x_mm-wall.start_x_mm,wall.end_y_mm-wall.start_y_mm)||1)*350} cy={(wall.start_y_mm+wall.end_y_mm)/2+(wall.end_x_mm-wall.start_x_mm)/(Math.hypot(wall.end_x_mm-wall.start_x_mm,wall.end_y_mm-wall.start_y_mm)||1)*350} r="115" data-kind="wall" data-id={wall.id} data-handle="rotate" className="geometry-rotate-handle"/></g>}</g>})}
+          {openings.map(sourceItem=>{const item=previewOpening?.id===sourceItem.id?{...sourceItem,...previewOpening}:sourceItem;return <g key={item.id} data-kind="opening" data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf("opening",item.id)) ? dragDelta.y : 0}) rotate(${item.rotation_deg} ${item.x_mm} ${item.y_mm})`} className="plan-selectable" onClick={event=>handleElementClick(event,"opening",item.id)}><line x1={item.x_mm} y1={item.y_mm} x2={item.x_mm+item.width_mm} y2={item.y_mm} className={selected?.id===item.id?"svg-opening svg-opening-selected":"svg-opening"}/><text x={item.x_mm+item.width_mm/2} y={item.y_mm-100} className="svg-opening-label" textAnchor="middle">{item.opening_type==="door"?"PORTA":item.opening_type==="window"?"JANELA":item.opening_type==="emergency_exit"?"SAÍDA":"SERVIÇO"}</text>{selected?.id===item.id&&<g className="geometry-handles"><circle cx={item.x_mm+item.width_mm} cy={item.y_mm} r="120" data-kind="opening" data-id={item.id} data-handle="end" className="geometry-handle"/><line x1={item.x_mm} y1={item.y_mm} x2={item.x_mm-350} y2={item.y_mm-350} className="geometry-handle-stem"/><circle cx={item.x_mm-350} cy={item.y_mm-350} r="115" data-kind="opening" data-id={item.id} data-handle="rotate" className="geometry-rotate-handle"/></g>}</g>})}
           {obstacles.map(item=>rectShape(item,"obstacle"))}
           {structures.map(item=>rectShape(item,"structure"))}
         </svg></div>
