@@ -78,7 +78,7 @@ async function mockBackend(page: Page) {
     }
     if (method === "PATCH") {
       updates.push({table,body:body??{}});
-      if(table==="projects"&&typeof body?.current_version==="number")projectVersion=body.current_version;
+      if(table==="projects"&&typeof body?.current_version==="number"){projectVersion=body.current_version;return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({id:venue.project_id})});}
       return route.fulfill({status:204,body:""});
     }
     return route.fulfill({status:200,contentType:"application/json",body:"[]"});
@@ -95,7 +95,7 @@ async function openEditor(page: Page) {
 
 test("redimensiona um obstáculo diretamente pela alça e persiste a geometria", async ({page}) => {
   const updates=await openEditor(page);
-  await page.locator("rect.svg-obstacle").click();
+  await page.locator("rect.svg-obstacle").first().click();
   const handle=page.locator('circle[data-kind="obstacle"][data-handle="e"]');
   await expect(handle).toBeVisible();
   const box=await handle.boundingBox();
