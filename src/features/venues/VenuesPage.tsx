@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "../../../supabase/database.types";
+import { metersToMillimeters, rectangleBoundary } from "./venue-geometry";
 
 type Venue = Tables<"venues">;
 type Project = Pick<Tables<"projects">, "id" | "name" | "organization_id">;
@@ -18,17 +19,7 @@ type VenueForm = {
 };
 
 const emptyForm: VenueForm = { projectId: "", name: "", widthM: "20", heightM: "15", ceilingM: "" };
-const toMillimeters = (value: string) => Math.round(Number(value) * 1000);
 const toMeters = (value: number | null) => value == null ? "" : (value / 1000).toString();
-
-function rectangleBoundary(width: number, height: number) {
-  return [
-    { x_mm: 0, y_mm: 0 },
-    { x_mm: width, y_mm: 0 },
-    { x_mm: width, y_mm: height },
-    { x_mm: 0, y_mm: height },
-  ];
-}
 
 export function VenuesPage() {
   const { user } = useAuth();
@@ -89,9 +80,9 @@ export function VenuesPage() {
   async function saveVenue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
-    const width = toMillimeters(form.widthM);
-    const height = toMillimeters(form.heightM);
-    const ceiling = form.ceilingM.trim() ? toMillimeters(form.ceilingM) : null;
+    const width = metersToMillimeters(Number(form.widthM));
+    const height = metersToMillimeters(Number(form.heightM));
+    const ceiling = form.ceilingM.trim() ? metersToMillimeters(Number(form.ceilingM)) : null;
     const project = projects.find(item => item.id === form.projectId);
     if (!project || !form.name.trim() || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || (ceiling !== null && (!Number.isSafeInteger(ceiling) || ceiling <= 0))) {
       setError("Informe um projeto, nome e dimensões válidas em metros.");
