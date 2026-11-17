@@ -13,6 +13,7 @@ type Opening = Tables<"venue_openings">;
 type Obstacle = Tables<"venue_obstacles">;
 type Structure = Tables<"venue_fixed_structures">;
 type ProjectVersion = Tables<"project_versions">;
+type PlanSnapshot = { schema_version: 1; kind: "venue_geometry"; parent_version: number | null; label: string; geometry: { walls: Wall[]; openings: Opening[]; obstacles: Obstacle[]; structures: Structure[] } };
 type Kind = "wall" | "opening" | "obstacle" | "structure";
 type FormState = { id?: string; kind: Kind; name: string; x: string; y: string; endX: string; endY: string; width: string; height: string; thickness: string; ceiling: string; rotation: string; openingType: Opening["opening_type"]; essential: boolean; blocks: boolean };
 const blankForm = (kind: Kind): FormState => ({ kind, name: "", x: "1", y: "1", endX: "5", endY: "1", width: "1", height: "2.1", thickness: "0.15", ceiling: "", rotation: "0", openingType: "door", essential: false, blocks: true });
@@ -184,6 +185,104 @@ export function VenuePlanPage() {
     let x = Math.round(local.x - drag.startX), y = Math.round(local.y - drag.startY);
     if (snapEnabled) { x = Math.round(x / 100) * 100; y = Math.round(y / 100) * 100; }
     setDragDelta({ x, y });
+  }
+
+
+  async function readGeometrySnapshot(): Promise<PlanSnapshot["geometry"]> {
+    if (!venue) throw new Error("Salão indisponível.");
+    const [w,o,b,s] = await Promise.all([
+      supabase.from("venue_walls").select("*").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_openings").select("*").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_obstacles").select("*").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_fixed_structures").select("*").eq("venue_id",venue.id).is("deleted_at",null)
+    ]);
+    if(w.error||o.error||b.error||s.error) throw new Error("Não foi possível preparar o histórico da planta.");
+    return {walls:w.data??[],openings:o.data??[],obstacles:b.data??[],structures:s.data??[]};
+  }
+
+  async function ensureHistoryBaseline() {
+    if(!venue) throw new Error("Salão indisponível.");
+    if(historyVersions.length>0 || currentVersionRef.current>0) return;
+    const {data,error}=await supabase.auth.getUser();
+    if(error||!data.user) throw new Error("Sessão expirada. Entre novamente para salvar o histórico.");
+    const geometry=await readGeometrySnapshot();
+    const version=Math.max(1,currentVersionRef.current);
+    const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:null,label:"Estado inicial",geometry};
+    const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label:"Estado inicial",snapshot:snapshot as unknown as Json});
+    if(inserted.error) throw inserted.error;
+    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id);
+    if(updated.error) throw updated.error;
+    currentVersionRef.current=version;setCurrentVersion(version);
+    const loaded=await supabase.from("project_versions").select("*").eq("project_id",venue.project_id).order("version");
+    if(!loaded.error)setHistoryVersions(loaded.data??[]);
+  }
+
+  async function recordHistory(label:string) {
+    if(!venue) return;
+    const {data,error}=await supabase.auth.getUser();
+    if(error||!data.user) throw new Error("Sessão expirada. Entre novamente para salvar o histórico.");
+    const geometry=await readGeometrySnapshot();
+    const latest=await supabase.from("project_versions").select("version").eq("project_id",venue.project_id).order("version",{ascending:false}).limit(1).maybeSingle();
+    if(latest.error) throw latest.error;
+    const version=(latest.data?.version??currentVersionRef.current)+1;
+    const parentVersion=currentVersionRef.current;
+    const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:parentVersion,label,geometry};
+    const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label,snapshot:snapshot as unknown as Json});
+    if(inserted.error) throw inserted.error;
+    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",parentVersion);
+    if(updated.error) throw updated.error;
+    currentVersionRef.current=version;setCurrentVersion(version);
+    const loaded=await supabase.from("project_versions").select("*").eq("project_id",venue.project_id).order("version");
+    if(!loaded.error)setHistoryVersions(loaded.data??[]);
+  }
+
+  function parseHistorySnapshot(row:ProjectVersion):PlanSnapshot|null {
+    const value=row.snapshot as unknown as PlanSnapshot;
+    return value?.schema_version===1&&value.kind==="venue_geometry"&&value.geometry?value:null;
+  }
+
+  async function restoreHistoryVersion(target:ProjectVersion) {
+    if(!venue) return;
+    const snapshot=parseHistorySnapshot(target);
+    if(!snapshot) throw new Error("Versão incompatível com o editor de planta.");
+    const stamp=new Date().toISOString(),g=snapshot.geometry;
+    const archived=await Promise.all([
+      supabase.from("venue_walls").update({deleted_at:stamp}).eq("venue_id",venue.id),
+      supabase.from("venue_openings").update({deleted_at:stamp}).eq("venue_id",venue.id),
+      supabase.from("venue_obstacles").update({deleted_at:stamp}).eq("venue_id",venue.id),
+      supabase.from("venue_fixed_structures").update({deleted_at:stamp}).eq("venue_id",venue.id)
+    ]);
+    if(archived.some(result=>result.error)) throw new Error("Não foi possível preparar a restauração.");
+    const restored=await Promise.all([
+      g.walls.length?supabase.from("venue_walls").upsert(g.walls.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
+      g.openings.length?supabase.from("venue_openings").upsert(g.openings.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
+      g.obstacles.length?supabase.from("venue_obstacles").upsert(g.obstacles.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
+      g.structures.length?supabase.from("venue_fixed_structures").upsert(g.structures.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null})
+    ]);
+    if(restored.some(result=>result.error)) throw new Error("A restauração não foi concluída por completo. Recarregue a planta.");
+    const updated=await supabase.from("projects").update({current_version:target.version}).eq("id",venue.project_id);
+    if(updated.error) throw updated.error;
+    currentVersionRef.current=target.version;setCurrentVersion(target.version);
+    await load();
+  }
+
+  async function moveHistory(direction:"undo"|"redo") {
+    if(!venue||historyBusy) return;
+    setHistoryBusy(true);setError("");
+    try {
+      const result=await supabase.from("project_versions").select("*").eq("project_id",venue.project_id).order("version");
+      if(result.error) throw result.error;
+      const rows=result.data??[],current=rows.find(row=>row.version===currentVersionRef.current);
+      if(!current) throw new Error("Versão atual não encontrada.");
+      const currentSnapshot=parseHistorySnapshot(current);
+      const target=direction==="undo"
+        ? rows.find(row=>row.version===currentSnapshot?.parent_version)
+        : rows.filter(row=>parseHistorySnapshot(row)?.parent_version===currentVersionRef.current).sort((a,b)=>b.version-a.version)[0];
+      if(!target) throw new Error(direction==="undo"?"Não há alterações para desfazer.":"Não há alterações para refazer.");
+      await restoreHistoryVersion(target);
+    } catch(cause) {
+      setError(cause instanceof Error?cause.message:"Falha ao navegar no histórico.");
+    } finally { setHistoryBusy(false); }
   }
 
   async function applyLayoutOperation(operation:"left"|"center-x"|"right"|"top"|"center-y"|"bottom"|"distribute-x"|"distribute-y") {
