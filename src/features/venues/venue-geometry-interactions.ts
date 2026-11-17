@@ -83,8 +83,7 @@ export function resizeRotatedRect(rect: SpatialRect, handle: RectHandle, delta: 
   const top = vertical ? Math.min(anchor.y_mm, movedLocal.y_mm) : rect.y_mm;
   const width = horizontal ? Math.max(minimum, Math.abs(movedLocal.x_mm - anchor.x_mm)) : rect.width_mm;
   const height = vertical ? Math.max(minimum, Math.abs(movedLocal.y_mm - anchor.y_mm)) : rect.height_mm;
-  const worldTopLeft = toWorld({ x_mm:left, y_mm:top }, center, rect.rotation_deg);
-  return { ...rect, x_mm:round(worldTopLeft.x_mm), y_mm:round(worldTopLeft.y_mm), width_mm:round(width), height_mm:round(height) };
+  return { ...rect, x_mm:round(left), y_mm:round(top), width_mm:round(width), height_mm:round(height) };
 }
 
 export function rotatedRectAt(rect: SpatialRect, pointer: PointMm, initialPointer: PointMm, initialRotation: number): SpatialRect {
