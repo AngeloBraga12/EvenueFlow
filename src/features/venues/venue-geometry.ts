@@ -3,8 +3,8 @@
  * Coordenadas e dimensões são sempre armazenadas em milímetros,
  * independentemente de qualquer mecanismo de renderização 2D ou 3D.
  */
-export type PointMm = Readonly<{ x_mm: number; y_mm: number }>;
-export type VenueBoundary = readonly PointMm[];
+export type PointMm = { [key: string]: number; x_mm: number; y_mm: number };
+export type VenueBoundary = PointMm[];
 
 export function rectangleBoundary(widthMm: number, heightMm: number): VenueBoundary {
   if (!Number.isSafeInteger(widthMm) || !Number.isSafeInteger(heightMm) || widthMm <= 0 || heightMm <= 0) {
