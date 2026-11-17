@@ -89,10 +89,11 @@ async function mockBackend(page: Page) {
 }
 
 async function openEditor(page: Page) {
-  await mockBackend(page);
+  const updates=await mockBackend(page);
   await page.goto("/app/saloes/22222222-2222-4222-8222-222222222222/planta");
   await expect(page.getByText("PLANTA BAIXA")).toBeVisible();
   await expect(page.locator("rect.svg-obstacle")).toBeVisible();
+  return updates;
 }
 
 test("redimensiona um obstáculo diretamente pela alça e persiste a geometria", async ({page}) => {
