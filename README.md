@@ -78,8 +78,8 @@ Os comandos estão configurados, mas só devem ser considerados aprovados após 
 
 ## Estado de implementação
 
-A fundação do frontend inclui autenticação por e-mail/senha, rotas protegidas, cliente Supabase tipado e a primeira tela de workspace com listagem e criação de projetos.
+A fundação do frontend inclui autenticação por e-mail/senha, rotas protegidas, cliente Supabase tipado, workspace com listagem/criação de projetos e uma primeira versão do Venue Manager com listagem, cadastro, edição e arquivamento lógico de salões vinculados a projetos. As dimensões do salão são convertidas para milímetros e a planta retangular inicial é persistida como vértices no campo `boundary`.
 
-O editor geométrico 2D/3D, Venue Manager completo, Event Manager, inventário, motor de otimização, análise de circulação, exportação, colaboração, testes automatizados e sincronização offline ainda exigem implementação e validação. O produto não deve ser considerado pronto até que os critérios de aceite do PRD sejam demonstrados.
+O editor geométrico 2D/3D, gerenciamento de paredes/aberturas/obstáculos/estruturas, Event Manager, inventário, motor de otimização, análise de circulação, exportação, colaboração, testes automatizados e sincronização offline ainda exigem implementação e validação. O produto não deve ser considerado pronto até que os critérios de aceite do PRD sejam demonstrados.
 
 Consulte [supabase/README.md](supabase/README.md) para a configuração do projeto e do banco.
