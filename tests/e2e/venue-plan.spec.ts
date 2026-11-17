@@ -112,8 +112,8 @@ test("redimensiona um obstáculo diretamente pela alça e persiste a geometria",
   expect((update?.body.geometry as {width_mm:number}).width_mm).toBeGreaterThan(1000);
 });
 
-test("mostra alinhamento e distribuição ao selecionar vários objetos", async ({page}) => {
-  await openEditor(page);
+test("alinha e distribui objetos após seleção múltipla", async ({page}) => {
+  const updates=await openEditor(page);
   await expect(page.getByRole("button",{name:"Desfazer"})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Refazer"})).toBeDisabled();
   const objects=page.locator("rect.svg-obstacle");
@@ -122,6 +122,8 @@ test("mostra alinhamento e distribuição ao selecionar vários objetos", async 
   await objects.nth(2).click({modifiers:["Control"]});
   await expect(page.getByText("3 selecionados")).toBeVisible();
   await expect(page.getByRole("button",{name:"Distribuir horizontalmente"})).toBeVisible();
+  await page.getByRole("button",{name:"Dist. X"}).click();
+  await expect.poll(()=>updates.filter(item=>item.table==="venue_obstacles"&&"geometry" in item.body).length).toBe(3);
 });
 
 test("desfaz e refaz uma edição usando versões persistidas", async ({page}) => {
@@ -153,4 +155,18 @@ test("rotaciona um elemento diretamente pela alça circular", async ({page}) => 
   await expect.poll(()=>updates.some(item=>item.table==="venue_obstacles"&&"geometry" in item.body)).toBeTruthy();
   const update=updates.find(item=>item.table==="venue_obstacles"&&"geometry" in item.body);
   expect((update?.body.geometry as {rotation_deg:number}).rotation_deg).not.toBe(0);
+});
+
+test("rejeita redimensionamento que ultrapassa os limites do salão", async ({page}) => {
+  const updates=await openEditor(page);
+  await page.locator("rect.svg-obstacle").first().click();
+  const handle=page.locator('circle[data-kind="obstacle"][data-handle="se"]').first();
+  const box=await handle.boundingBox();
+  if(!box)throw new Error("Alça de redimensionamento indisponível.");
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2+900,box.y+box.height/2+600,{steps:8});
+  await page.mouse.up();
+  await expect(page.getByRole("alert")).toContainText("limites do salão");
+  expect(updates.some(item=>item.table==="venue_obstacles"&&"geometry" in item.body)).toBe(false);
 });
