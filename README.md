@@ -2,7 +2,7 @@
 
 Plataforma profissional de planejamento espacial para eventos. O produto conecta espaços físicos, mobiliário, convidados e circulação em um ambiente de trabalho único.
 
-> **Documento de referência:** [PRD VenueFlow Studio v0.2](docs/PRD.md). As decisões de produto, arquitetura, UX, regras de negócio e critérios de aceite devem permanecer alinhadas a esse documento.
+> **Documento de referência:** [PRD VenueFlow Studio v0.2](docs/PRD.md). As decisões de produto, arquitetura, UX, regras de negócio e critérios de aceite devem permanecer alinhadas a esse documento.\n>\n> **Modelo geométrico:** [GEOMETRY-MODEL.md](docs/GEOMETRY-MODEL.md), com as convenções de coordenadas, entidades espaciais e limitações atuais.
 
 ## Stack
 
