@@ -276,10 +276,16 @@ export function VenuePlanPage() {
     const snapshot=parseHistorySnapshot(target);
     if(!snapshot) throw new Error("Versão incompatível com o editor de planta.");
     if(snapshot.project_id!==venue.project_id)throw new Error("A versão pertence a outro projeto.");
-    const stamp=new Date().toISOString(),g=snapshot.geometry;
+    const stamp=new Date().toISOString();
     const venueResult=await supabase.from("venues").select("id").eq("project_id",venue.project_id).is("deleted_at",null);
     if(venueResult.error)throw new Error("Não foi possível validar os salões do projeto.");
     const venueIds=(venueResult.data??[]).map(row=>row.id);
+    const g={
+      walls:snapshot.geometry.walls.filter(row=>venueIds.includes(row.venue_id)),
+      openings:snapshot.geometry.openings.filter(row=>venueIds.includes(row.venue_id)),
+      obstacles:snapshot.geometry.obstacles.filter(row=>venueIds.includes(row.venue_id)),
+      structures:snapshot.geometry.structures.filter(row=>venueIds.includes(row.venue_id))
+    };
     const restored=await Promise.all([
       g.walls.length?supabase.from("venue_walls").upsert(g.walls.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
       g.openings.length?supabase.from("venue_openings").upsert(g.openings.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
