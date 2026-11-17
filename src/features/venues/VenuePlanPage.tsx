@@ -13,7 +13,7 @@ type Opening = Tables<"venue_openings">;
 type Obstacle = Tables<"venue_obstacles">;
 type Structure = Tables<"venue_fixed_structures">;
 type ProjectVersion = Tables<"project_versions">;
-type PlanSnapshot = { schema_version: 1; kind: "venue_geometry"; parent_version: number | null; label: string; geometry: { walls: Wall[]; openings: Opening[]; obstacles: Obstacle[]; structures: Structure[] } };
+type PlanSnapshot = { schema_version: 2; kind: "project_venue_geometry"; project_id: string; parent_version: number | null; label: string; geometry: { walls: Wall[]; openings: Opening[]; obstacles: Obstacle[]; structures: Structure[] } };
 type Kind = "wall" | "opening" | "obstacle" | "structure";
 type FormState = { id?: string; kind: Kind; name: string; x: string; y: string; endX: string; endY: string; width: string; height: string; thickness: string; ceiling: string; rotation: string; openingType: Opening["opening_type"]; essential: boolean; blocks: boolean };
 const blankForm = (kind: Kind): FormState => ({ kind, name: "", x: "1", y: "1", endX: "5", endY: "1", width: "1", height: "2.1", thickness: "0.15", ceiling: "", rotation: "0", openingType: "door", essential: false, blocks: true });
@@ -204,11 +204,15 @@ export function VenuePlanPage() {
 
   async function readGeometrySnapshot(): Promise<PlanSnapshot["geometry"]> {
     if (!venue) throw new Error("Salão indisponível.");
+    const venuesResult=await supabase.from("venues").select("id").eq("project_id",venue.project_id).is("deleted_at",null);
+    if(venuesResult.error)throw new Error("Não foi possível identificar os salões do projeto para o histórico.");
+    const venueIds=(venuesResult.data??[]).map(row=>row.id);
+    if(!venueIds.length)return {walls:[],openings:[],obstacles:[],structures:[]};
     const [w,o,b,s] = await Promise.all([
-      supabase.from("venue_walls").select("*").eq("venue_id",venue.id).is("deleted_at",null),
-      supabase.from("venue_openings").select("*").eq("venue_id",venue.id).is("deleted_at",null),
-      supabase.from("venue_obstacles").select("*").eq("venue_id",venue.id).is("deleted_at",null),
-      supabase.from("venue_fixed_structures").select("*").eq("venue_id",venue.id).is("deleted_at",null)
+      supabase.from("venue_walls").select("*").in("venue_id",venueIds).is("deleted_at",null),
+      supabase.from("venue_openings").select("*").in("venue_id",venueIds).is("deleted_at",null),
+      supabase.from("venue_obstacles").select("*").in("venue_id",venueIds).is("deleted_at",null),
+      supabase.from("venue_fixed_structures").select("*").in("venue_id",venueIds).is("deleted_at",null)
     ]);
     if(w.error||o.error||b.error||s.error) throw new Error("Não foi possível preparar o histórico da planta.");
     return {walls:w.data??[],openings:o.data??[],obstacles:b.data??[],structures:s.data??[]};
@@ -221,7 +225,7 @@ export function VenuePlanPage() {
     if(error||!data.user) throw new Error("Sessão expirada. Entre novamente para salvar o histórico.");
     const geometry=await readGeometrySnapshot();
     const version=Math.max(0,currentVersionRef.current,...historyVersions.map(row=>row.version))+1;
-    const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:null,label:"Estado inicial",geometry};
+    const snapshot:PlanSnapshot={schema_version:2,kind:"project_venue_geometry",project_id:venue.project_id,parent_version:null,label:"Estado inicial",geometry};
     const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label:"Estado inicial",snapshot:snapshot as unknown as Json});
     if(inserted.error) throw inserted.error;
     const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",currentVersionRef.current).select("id").maybeSingle();
@@ -241,7 +245,7 @@ export function VenuePlanPage() {
     if(latest.error) throw latest.error;
     const version=(latest.data?.version??currentVersionRef.current)+1;
     const parentVersion=currentVersionRef.current;
-    const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:parentVersion,label,geometry};
+    const snapshot:PlanSnapshot={schema_version:2,kind:"project_venue_geometry",project_id:venue.project_id,parent_version:parentVersion,label,geometry};
     const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label,snapshot:snapshot as unknown as Json});
     if(inserted.error) throw inserted.error;
     const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",parentVersion).select("id").maybeSingle();
@@ -264,14 +268,18 @@ export function VenuePlanPage() {
 
   function parseHistorySnapshot(row:ProjectVersion):PlanSnapshot|null {
     const value=row.snapshot as unknown as PlanSnapshot;
-    return value?.schema_version===1&&value.kind==="venue_geometry"&&value.geometry?value:null;
+    return value?.schema_version===2&&value.kind==="project_venue_geometry"&&value.project_id===venue?.project_id&&value.geometry?value:null;
   }
 
   async function restoreHistoryVersion(target:ProjectVersion) {
     if(!venue) return;
     const snapshot=parseHistorySnapshot(target);
     if(!snapshot) throw new Error("Versão incompatível com o editor de planta.");
+    if(snapshot.project_id!==venue.project_id)throw new Error("A versão pertence a outro projeto.");
     const stamp=new Date().toISOString(),g=snapshot.geometry;
+    const venueResult=await supabase.from("venues").select("id").eq("project_id",venue.project_id).is("deleted_at",null);
+    if(venueResult.error)throw new Error("Não foi possível validar os salões do projeto.");
+    const venueIds=(venueResult.data??[]).map(row=>row.id);
     const restored=await Promise.all([
       g.walls.length?supabase.from("venue_walls").upsert(g.walls.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
       g.openings.length?supabase.from("venue_openings").upsert(g.openings.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
@@ -280,7 +288,7 @@ export function VenuePlanPage() {
     ]);
     if(restored.some(result=>result.error)) throw new Error("A restauração não foi concluída por completo. Os elementos existentes foram preservados.");
     const [currentWalls,currentOpenings,currentObstacles,currentStructures]=await Promise.all([
-      supabase.from("venue_walls").select("id").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_walls").select("id").in("venue_id",venueIds).is("deleted_at",null),
       supabase.from("venue_openings").select("id").eq("venue_id",venue.id).is("deleted_at",null),
       supabase.from("venue_obstacles").select("id").eq("venue_id",venue.id).is("deleted_at",null),
       supabase.from("venue_fixed_structures").select("id").eq("venue_id",venue.id).is("deleted_at",null)
