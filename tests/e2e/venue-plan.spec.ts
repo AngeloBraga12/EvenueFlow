@@ -121,7 +121,7 @@ test("alinha e distribui objetos após seleção múltipla", async ({page}) => {
   await objects.nth(1).click({modifiers:["Control"]});
   await objects.nth(2).click({modifiers:["Control"]});
   await expect(page.getByText("3 selecionados")).toBeVisible();
-  await expect(page.getByRole("button",{name:"Distribuir horizontalmente"})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Dist. X"})).toBeVisible();
   await page.getByRole("button",{name:"Dist. X"}).click();
   await expect.poll(()=>updates.filter(item=>item.table==="venue_obstacles"&&"geometry" in item.body).length).toBe(3);
 });
