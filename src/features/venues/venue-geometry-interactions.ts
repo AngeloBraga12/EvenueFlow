@@ -25,6 +25,26 @@ export function rectCorners(rect: SpatialRect): PointMm[] {
   ].map(point => rotate(point, center, rect.rotation_deg));
 }
 
+
+export function isRotatedRectInsideVenue(rect: SpatialRect, widthMm: number, heightMm: number): boolean {
+  const bounds = rectBounds(rect);
+  return bounds.left >= 0 && bounds.top >= 0 && bounds.right <= widthMm && bounds.bottom <= heightMm;
+}
+
+export function rectHandlePoints(rect: SpatialRect): Record<RectHandle, PointMm> {
+  const [nw, ne, se, sw] = rectCorners(rect);
+  const midpoint = (a: PointMm, b: PointMm): PointMm => ({x_mm:(a.x_mm+b.x_mm)/2,y_mm:(a.y_mm+b.y_mm)/2});
+  return { nw, n:midpoint(nw,ne), ne, e:midpoint(ne,se), se, s:midpoint(sw,se), sw, w:midpoint(nw,sw) };
+}
+
+export function rectRotationHandle(rect: SpatialRect, offset = 350): PointMm {
+  const points = rectHandlePoints(rect);
+  const top = points.n, center = rectCenter(rect);
+  const dx = top.x_mm-center.x_mm, dy = top.y_mm-center.y_mm;
+  const length = Math.hypot(dx,dy) || 1;
+  return {x_mm:top.x_mm+dx/length*offset,y_mm:top.y_mm+dy/length*offset};
+}
+
 export function rectBounds(rect: SpatialRect): BoundsMm {
   const corners = rectCorners(rect);
   const xs = corners.map(point => point.x_mm), ys = corners.map(point => point.y_mm);
