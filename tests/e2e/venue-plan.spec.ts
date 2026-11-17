@@ -42,6 +42,8 @@ const obstacle = {
 async function mockBackend(page: Page) {
   const versions: Array<Record<string, unknown>> = [];
   const updates: Array<{ table: string; body: Record<string, unknown> }> = [];
+  let projectVersion=1;
+  const obstacles=[obstacle,{...obstacle,id:"66666666-6666-4666-8666-666666666666",name:"Pilar 2",geometry:{...obstacle.geometry,x_mm:5000}},{...obstacle,id:"77777777-7777-4777-8777-777777777777",name:"Pilar 3",geometry:{...obstacle.geometry,x_mm:7500}}];
   await page.addInitScript(({ userData }) => {
     localStorage.setItem("sb-pfzigswxultqyjahunqo-auth-token", JSON.stringify({
       access_token: "test-access-token",
@@ -61,8 +63,8 @@ async function mockBackend(page: Page) {
     const body = request.postDataJSON?.() as Record<string, unknown> | undefined;
     if (method === "GET") {
       if (table === "venues") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(venue)});
-      if (table === "projects") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({current_version:1})});
-      if (table === "venue_obstacles") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify([obstacle])});
+      if (table === "projects") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({current_version:projectVersion})});
+      if (table === "venue_obstacles") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(obstacles)});
       if (table === "project_versions") {
         const data=url.searchParams.get("select")==="version"?versions.map(row=>({version:row.version})):versions;
         return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(data)});
@@ -76,6 +78,7 @@ async function mockBackend(page: Page) {
     }
     if (method === "PATCH") {
       updates.push({table,body:body??{}});
+      if(table==="projects"&&typeof body?.current_version==="number")projectVersion=body.current_version;
       return route.fulfill({status:204,body:""});
     }
     return route.fulfill({status:200,contentType:"application/json",body:"[]"});
@@ -106,10 +109,28 @@ test("redimensiona um obstáculo diretamente pela alça e persiste a geometria",
   expect((update?.body.geometry as {width_mm:number}).width_mm).toBeGreaterThan(1000);
 });
 
-test("exibe controles de alinhamento apenas com seleção múltipla e valida estado de histórico", async ({page}) => {
+test("mostra alinhamento e distribuição ao selecionar vários objetos", async ({page}) => {
   await openEditor(page);
   await expect(page.getByRole("button",{name:"Desfazer"})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Refazer"})).toBeDisabled();
-  await page.locator("rect.svg-obstacle").click();
-  await expect(page.locator(".plan-align-actions")).toHaveCount(0);
+  const objects=page.locator("rect.svg-obstacle");
+  await objects.nth(0).click();
+  await objects.nth(1).click({modifiers:["Control"]});
+  await objects.nth(2).click({modifiers:["Control"]});
+  await expect(page.getByRole("button",{name:"Distribuir horizontalmente"})).toBeVisible();
+});
+
+test("desfaz e refaz uma edição usando versões persistidas", async ({page}) => {
+  await openEditor(page);
+  await page.locator("rect.svg-obstacle").first().click();
+  const handle=page.locator('circle[data-kind="obstacle"][data-handle="e"]').first();
+  const box=await handle.boundingBox();
+  if(!box)throw new Error("Alça de redimensionamento indisponível.");
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await page.mouse.down();await page.mouse.move(box.x+box.width/2+24,box.y+box.height/2,{steps:4});await page.mouse.up();
+  await expect(page.getByRole("button",{name:"Desfazer"})).toBeEnabled();
+  await page.getByRole("button",{name:"Desfazer"}).click();
+  await expect(page.getByRole("button",{name:"Refazer"})).toBeEnabled();
+  await page.getByRole("button",{name:"Refazer"}).click();
+  await expect(page.getByRole("button",{name:"Desfazer"})).toBeEnabled();
 });
