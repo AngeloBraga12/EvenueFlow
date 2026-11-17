@@ -120,6 +120,7 @@ test("mostra alinhamento e distribuição ao selecionar vários objetos", async 
   await objects.nth(0).click();
   await objects.nth(1).click({modifiers:["Control"]});
   await objects.nth(2).click({modifiers:["Control"]});
+  await expect(page.getByText("3 selecionados")).toBeVisible();
   await expect(page.getByRole("button",{name:"Distribuir horizontalmente"})).toBeVisible();
 });
 
