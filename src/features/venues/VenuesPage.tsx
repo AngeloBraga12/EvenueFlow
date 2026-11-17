@@ -80,9 +80,17 @@ export function VenuesPage() {
   async function saveVenue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!user) return;
-    const width = metersToMillimeters(Number(form.widthM));
-    const height = metersToMillimeters(Number(form.heightM));
-    const ceiling = form.ceilingM.trim() ? metersToMillimeters(Number(form.ceilingM)) : null;
+    let width: number;
+    let height: number;
+    let ceiling: number | null;
+    try {
+      width = metersToMillimeters(Number(form.widthM));
+      height = metersToMillimeters(Number(form.heightM));
+      ceiling = form.ceilingM.trim() ? metersToMillimeters(Number(form.ceilingM)) : null;
+    } catch {
+      setError("Informe dimensões maiores que zero e dentro dos limites permitidos.");
+      return;
+    }
     const project = projects.find(item => item.id === form.projectId);
     if (!project || !form.name.trim() || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || (ceiling !== null && (!Number.isSafeInteger(ceiling) || ceiling <= 0))) {
       setError("Informe um projeto, nome e dimensões válidas em metros.");
