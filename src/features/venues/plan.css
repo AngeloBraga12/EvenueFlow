@@ -15,16 +15,16 @@
 .venue-svg{display:block;width:100%;height:100%;max-height:720px;min-height:380px;overflow:visible}
 .svg-grid-line{stroke:#526057;stroke-width:8;opacity:.35}
 .svg-room{fill:#242c27}
-.svg-boundary{fill:none;stroke:#c4e56a;stroke-width:65;vector-effect:non-scaling-stroke}
+.svg-boundary{fill:none;stroke:#c4e56a;stroke-width:65}
 .svg-wall{stroke:#d8ded8;stroke-linecap:square;vector-effect:non-scaling-stroke;cursor:pointer}
 .svg-wall-selected{stroke:#c4e56a}
 .svg-opening{stroke:#d69b52;stroke-width:100;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .svg-opening-selected{stroke:#f4c27e}
 .svg-opening-label{fill:#d69b52;font:100px 'DM Mono',monospace}
-.svg-obstacle{fill:#9b6258;fill-opacity:.7;stroke:#d88a7d;stroke-width:55;vector-effect:non-scaling-stroke}
+.svg-obstacle{fill:#9b6258;fill-opacity:.7;stroke:#d88a7d;stroke-width:55}
 .svg-structure{fill:#657b8a;fill-opacity:.7;stroke:#a6bdc9;stroke-width:55;vector-effect:non-scaling-stroke}
 .svg-label{fill:#f2f4ef;font:120px sans-serif;pointer-events:none}
-.svg-selected{fill:none;stroke:#c4e56a;stroke-width:75;stroke-dasharray:180 100;vector-effect:non-scaling-stroke;pointer-events:none}
+.svg-selected{fill:none;stroke:#c4e56a;stroke-width:75;stroke-dasharray:180 100;pointer-events:none}
 .plan-selectable{cursor:pointer}
 .plan-legend{display:flex;gap:18px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #343b37;color:#aeb8b0;font-size:10px}
 .plan-legend span{display:flex;align-items:center;gap:7px}
