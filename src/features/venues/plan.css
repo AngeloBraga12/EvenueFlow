@@ -1,0 +1,64 @@
+.plan-shell{min-height:100vh;background:#171a19;color:#e8ebe7;padding:0 28px 22px}
+.plan-header{min-height:96px;display:grid;grid-template-columns:150px 1fr auto;align-items:center;gap:20px;border-bottom:1px solid #343b37}
+.plan-back{display:flex;align-items:center;gap:8px;color:#c4e56a;font-size:12px}
+.plan-header h1{font-size:22px;font-weight:500;letter-spacing:-.03em;margin:5px 0 3px}
+.plan-header p{margin:0;color:#9ba49e;font-size:11px}
+.plan-unit{display:flex;align-items:center;gap:7px;color:#aebba2;font:10px 'DM Mono',monospace}
+.plan-workspace{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:14px;padding:18px 0;min-height:calc(100vh - 160px)}
+.plan-canvas-panel,.plan-tools{background:#1d221f;border:1px solid #343b37;min-width:0}
+.plan-canvas-panel{display:flex;flex-direction:column;min-height:520px}
+.plan-canvas-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #343b37}
+.plan-canvas-head>div{display:grid;gap:5px}
+.plan-canvas-head strong{font-size:12px;font-weight:500}
+.plan-canvas-head>span{font:10px 'DM Mono',monospace;color:#9ba49e}
+.plan-canvas-wrap{flex:1;min-height:420px;display:grid;place-items:center;overflow:auto;padding:22px;background-color:#191e1b;background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);background-size:24px 24px}
+.venue-svg{display:block;width:100%;height:100%;max-height:720px;min-height:380px;overflow:visible}
+.svg-grid-line{stroke:#526057;stroke-width:8;opacity:.35}
+.svg-room{fill:#242c27}
+.svg-boundary{fill:none;stroke:#c4e56a;stroke-width:65;vector-effect:non-scaling-stroke}
+.svg-wall{stroke:#d8ded8;stroke-linecap:square;vector-effect:non-scaling-stroke;cursor:pointer}
+.svg-wall-selected{stroke:#c4e56a}
+.svg-opening{stroke:#d69b52;stroke-width:100;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.svg-opening-selected{stroke:#f4c27e}
+.svg-opening-label{fill:#d69b52;font:100px 'DM Mono',monospace}
+.svg-obstacle{fill:#9b6258;fill-opacity:.7;stroke:#d88a7d;stroke-width:55;vector-effect:non-scaling-stroke}
+.svg-structure{fill:#657b8a;fill-opacity:.7;stroke:#a6bdc9;stroke-width:55;vector-effect:non-scaling-stroke}
+.svg-label{fill:#f2f4ef;font:120px sans-serif;pointer-events:none}
+.svg-selected{fill:none;stroke:#c4e56a;stroke-width:75;stroke-dasharray:180 100;vector-effect:non-scaling-stroke;pointer-events:none}
+.plan-selectable{cursor:pointer}
+.plan-legend{display:flex;gap:18px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #343b37;color:#aeb8b0;font-size:10px}
+.plan-legend span{display:flex;align-items:center;gap:7px}
+.plan-legend i{display:inline-block;width:15px;height:4px}
+.legend-wall{background:#d8ded8}.legend-opening{background:#d69b52}.legend-obstacle{background:#d88a7d}.legend-structure{background:#a6bdc9}
+.plan-tools{padding:14px;display:flex;flex-direction:column;gap:15px}
+.plan-tools-title{display:flex;align-items:center;gap:9px;color:#c4e56a;font:10px 'DM Mono',monospace;letter-spacing:.1em;padding-bottom:12px;border-bottom:1px solid #343b37}
+.plan-add-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.plan-add-grid button{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-height:38px;padding:0 10px;background:#252d28;border:1px solid #3b463e;color:#dce4dc;font-size:11px}
+.plan-add-grid button:hover{border-color:#8ca36a;color:#d9f29d}
+.plan-section{display:grid;gap:6px}
+.plan-section h3{display:flex;justify-content:space-between;margin:0 0 3px;color:#9ba69e;font:10px 'DM Mono',monospace;letter-spacing:.08em}
+.plan-section h3 small{color:#c4e56a}
+.plan-row{display:flex;align-items:center;gap:4px;padding:6px;background:#222824;border:1px solid transparent}
+.plan-row.active{border-color:#839b5c;background:#2b342d}
+.plan-row-main{display:grid;gap:4px;flex:1;min-width:0;text-align:left;background:none;border:0;color:#e8ebe7;padding:3px}
+.plan-row-main strong{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-row-main small{font-size:9px;color:#9ba49e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-icon-button{display:grid;place-items:center;flex:0 0 28px;height:28px;background:transparent;border:1px solid transparent;color:#9ba49e}
+.plan-icon-button:hover{border-color:#53634a;color:#c4e56a}
+.plan-footer{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;color:#87938a;font:9px 'DM Mono',monospace}
+.plan-footer span:first-child{display:flex;align-items:center;gap:7px}
+.plan-alert{display:flex;align-items:center;gap:9px;margin-top:12px;padding:10px 12px;background:#392923;border:1px solid #805348;color:#f0b4a7;font-size:11px}
+.plan-error{display:grid;gap:15px;place-content:center;min-height:70vh;color:#e8ebe7;text-align:center}
+.plan-error a{color:#c4e56a;font-size:12px}
+.plan-modal{width:min(100%,540px);max-height:90vh;overflow:auto}
+.plan-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.plan-number-field{display:grid;gap:7px;min-width:0}
+.plan-number-field label{font-size:11px;color:#cbd1cc}
+.plan-number-field label span{color:#8f9a92;font-weight:400}
+.plan-check{display:flex!important;align-items:center;gap:9px;font-size:11px!important}
+.plan-check input{accent-color:#c4e56a;width:15px;height:15px}
+.venue-plan-link{display:flex;align-items:center;gap:6px;padding:0 10px;min-height:34px;border:1px solid #526147;color:#c4e56a;font-size:10px;white-space:nowrap}
+.venue-plan-link:hover{background:#2c342d}
+@media(max-width:1000px){.plan-workspace{grid-template-columns:minmax(0,1fr) 300px}.plan-shell{padding:0 16px 18px}}
+@media(max-width:760px){.plan-header{grid-template-columns:1fr auto;gap:10px;padding:14px 0}.plan-header>div{grid-column:1/-1;grid-row:2}.plan-back{grid-column:1;grid-row:1}.plan-unit{grid-column:2;grid-row:1}.plan-workspace{grid-template-columns:1fr}.plan-canvas-panel{min-height:430px}.plan-canvas-wrap{min-height:320px;padding:10px}.venue-svg{min-height:300px}.plan-tools{display:grid;grid-template-columns:1fr 1fr;align-content:start}.plan-tools-title,.plan-add-grid{grid-column:1/-1}.plan-section{min-width:0}.plan-footer{flex-direction:column}.venue-row{align-items:flex-start}.venue-plan-link{order:3}}
+@media(max-width:480px){.plan-tools{grid-template-columns:1fr}.plan-section{grid-column:1}.plan-add-grid button{font-size:10px}.plan-form-grid{gap:9px}}
