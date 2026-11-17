@@ -77,3 +77,5 @@
 .geometry-handles{pointer-events:all}.geometry-handle{fill:#f1f5e9;stroke:#455c36;stroke-width:35;cursor:nwse-resize;touch-action:none}.geometry-rotate-handle{fill:#c4e56a;stroke:#26351f;stroke-width:35;cursor:grab;touch-action:none}.geometry-handle-stem{stroke:#c4e56a;stroke-width:28;stroke-dasharray:60 45;pointer-events:none}
 
 .plan-align-actions{display:flex;gap:3px;flex-wrap:wrap;padding-right:6px;border-right:1px solid #465047}.plan-align-actions button{min-height:28px;padding:0 6px;font-size:9px}.plan-align-actions button:disabled{opacity:.4;cursor:not-allowed}
+
+.plan-history-actions{display:flex;align-items:center;gap:3px;padding-right:7px;border-right:1px solid #465047}.plan-history-actions button{display:grid;place-items:center;width:30px;min-height:30px;padding:0}.plan-history-actions button:disabled{opacity:.35;cursor:not-allowed}.plan-history-actions span{font:10px 'DM Mono',monospace;color:#aeb8b0;padding:0 3px}
