@@ -513,7 +513,7 @@ export function VenuePlanPage() {
   const rectShape = (item: Obstacle | Structure, kind: Kind) => {
     const rect = previewRect?.id===item.id ? previewRect.rect : parseSpatialRect(item.geometry);
     if (!rect) return null;
-    return <g key={item.id} data-kind={kind} data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.y : 0}) rotate(${rect.rotation_deg} ${rect.x_mm + rect.width_mm / 2} ${rect.y_mm + rect.height_mm / 2})`} onClick={() => setSelected({ kind, id: item.id })} className="plan-selectable">
+    return <g key={item.id} data-kind={kind} data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.y : 0}) rotate(${rect.rotation_deg} ${rect.x_mm + rect.width_mm / 2} ${rect.y_mm + rect.height_mm / 2})`} onClick={event=>handleElementClick(event,kind,item.id)} className="plan-selectable">
       <rect x={rect.x_mm} y={rect.y_mm} width={rect.width_mm} height={rect.height_mm} className={kind === "obstacle" ? "svg-obstacle" : "svg-structure"} />
       <text x={rect.x_mm + rect.width_mm / 2} y={rect.y_mm + rect.height_mm / 2} className="svg-label" textAnchor="middle" dominantBaseline="middle">{item.name}</text>
       {selected?.id === item.id && <><rect x={rect.x_mm} y={rect.y_mm} width={rect.width_mm} height={rect.height_mm} className="svg-selected" />
