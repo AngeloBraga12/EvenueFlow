@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from
 import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
-import type { Json, Tables, TablesInsert } from "../../../supabase/database.types";
+import type { Json, Tables } from "../../../supabase/database.types";
 import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect, type SpatialRect } from "./venue-geometry";
 
 type Venue = Tables<"venues">;
