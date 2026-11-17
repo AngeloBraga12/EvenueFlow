@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Activity,Archive,Boxes,Building2,CalendarDays,ChevronDown,ClipboardList,FolderKanban,LayoutDashboard,LogOut,Plus,Search,Settings,Users,Workflow } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { getSupabaseClient } from "../../lib/supabase/client";
-import type { Tables } from "../../../../supabase/database.types";
+import type { Tables } from "../../../supabase/database.types";
 type Project=Tables<"projects">;
 const nav=[{label:"Início",icon:LayoutDashboard,href:"/app"},{label:"Projetos",icon:FolderKanban,href:"/app/projetos"},{label:"Salões",icon:Building2,href:"/app/saloes"},{label:"Eventos",icon:CalendarDays,href:"/app/eventos"},{label:"Inventário",icon:Boxes,href:"/app/inventario"},{label:"Relatórios",icon:ClipboardList,href:"/app/relatorios"}];
 export function WorkspacePage(){
@@ -12,9 +12,8 @@ export function WorkspacePage(){
  useEffect(()=>{void load();},[user]);
  async function createProject(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!user)return;setSaving(true);setError("");try{
   const supabase=getSupabaseClient();let {data:org}=await supabase.from("organizations").select("id").eq("owner_user_id",user.id).is("deleted_at",null).limit(1).maybeSingle();
-  if(!org){const slug="workspace-"+user.id.slice(0,8);const created=await supabase.from("organizations").insert({name:"Meu espaço",owner_user_id:user.id,slug}).select("id").single();if(created.error)throw created.error;org=created.data;
-   const member=await supabase.from("organization_members").upsert({organization_id:org.id,user_id:user.id,role:"owner"},{onConflict:"organization_id,user_id"});if(member.error)throw member.error;
-  }
+  if(!org){const slug="workspace-"+user.id.slice(0,8);const created=await supabase.from("organizations").insert({name:"Meu espaço",owner_user_id:user.id,slug}).select("id").single();if(created.error)throw created.error;org=created.data;}
+  const member=await supabase.from("organization_members").upsert({organization_id:org.id,user_id:user.id,role:"owner"},{onConflict:"organization_id,user_id"});if(member.error)throw member.error;
   const result=await supabase.from("projects").insert({name:projectName.trim(),description:projectDescription.trim()||null,organization_id:org.id,created_by:user.id,status:"draft"}).select("*").single();
   if(result.error)throw result.error;setProjects(current=>[result.data,...current]);setCreateOpen(false);setProjectName("");setProjectDescription("");
  }catch(cause){setError(cause instanceof Error?cause.message:"Não foi possível criar o projeto.");}finally{setSaving(false);}}
