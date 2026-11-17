@@ -73,3 +73,5 @@
 .svg-wall-draft{stroke:#c4e56a;stroke-width:110;stroke-dasharray:220 120;stroke-linecap:round;pointer-events:none}
 
 .plan-canvas-wrap.no-grid{background-image:none}
+
+.geometry-handles{pointer-events:all}.geometry-handle{fill:#f1f5e9;stroke:#455c36;stroke-width:35;cursor:nwse-resize;touch-action:none}.geometry-rotate-handle{fill:#c4e56a;stroke:#26351f;stroke-width:35;cursor:grab;touch-action:none}.geometry-handle-stem{stroke:#c4e56a;stroke-width:28;stroke-dasharray:60 45;pointer-events:none}
