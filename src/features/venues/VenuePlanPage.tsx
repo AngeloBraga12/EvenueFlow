@@ -486,7 +486,12 @@ export function VenuePlanPage() {
     return <g key={item.id} data-kind={kind} data-id={item.id} transform={`translate(${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.x : 0} ${selectedKeys.includes(keyOf(kind,item.id)) ? dragDelta.y : 0}) rotate(${rect.rotation_deg} ${rect.x_mm + rect.width_mm / 2} ${rect.y_mm + rect.height_mm / 2})`} onClick={() => setSelected({ kind, id: item.id })} className="plan-selectable">
       <rect x={rect.x_mm} y={rect.y_mm} width={rect.width_mm} height={rect.height_mm} className={kind === "obstacle" ? "svg-obstacle" : "svg-structure"} />
       <text x={rect.x_mm + rect.width_mm / 2} y={rect.y_mm + rect.height_mm / 2} className="svg-label" textAnchor="middle" dominantBaseline="middle">{item.name}</text>
-      {selected?.id === item.id && <rect x={rect.x_mm} y={rect.y_mm} width={rect.width_mm} height={rect.height_mm} className="svg-selected" />}
+      {selected?.id === item.id && <><rect x={rect.x_mm} y={rect.y_mm} width={rect.width_mm} height={rect.height_mm} className="svg-selected" />
+        <g className="geometry-handles">
+          {(["nw","n","ne","e","se","s","sw","w"] as RectHandle[]).map(handle=>{const points:Record<RectHandle,PointMm>={nw:{x_mm:rect.x_mm,y_mm:rect.y_mm},n:{x_mm:rect.x_mm+rect.width_mm/2,y_mm:rect.y_mm},ne:{x_mm:rect.x_mm+rect.width_mm,y_mm:rect.y_mm},e:{x_mm:rect.x_mm+rect.width_mm,y_mm:rect.y_mm+rect.height_mm/2},se:{x_mm:rect.x_mm+rect.width_mm,y_mm:rect.y_mm+rect.height_mm},s:{x_mm:rect.x_mm+rect.width_mm/2,y_mm:rect.y_mm+rect.height_mm},sw:{x_mm:rect.x_mm,y_mm:rect.y_mm+rect.height_mm},w:{x_mm:rect.x_mm,y_mm:rect.y_mm+rect.height_mm/2}};const point=points[handle];return <circle key={handle} cx={point.x_mm} cy={point.y_mm} r="115" data-kind={kind} data-id={item.id} data-handle={handle} className="geometry-handle"/>;})}
+          <line x1={rect.x_mm+rect.width_mm/2} y1={rect.y_mm} x2={rect.x_mm+rect.width_mm/2} y2={rect.y_mm-350} className="geometry-handle-stem"/>
+          <circle cx={rect.x_mm+rect.width_mm/2} cy={rect.y_mm-350} r="115" data-kind={kind} data-id={item.id} data-handle="rotate" className="geometry-rotate-handle"/>
+        </g></>}
     </g>;
   };
 
