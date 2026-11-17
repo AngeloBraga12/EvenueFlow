@@ -136,3 +136,19 @@ test("desfaz e refaz uma edição usando versões persistidas", async ({page}) =
   await page.getByRole("button",{name:"Refazer"}).click();
   await expect(page.getByRole("button",{name:"Desfazer"})).toBeEnabled();
 });
+
+test("rotaciona um elemento diretamente pela alça circular", async ({page}) => {
+  const updates=await openEditor(page);
+  await page.locator("rect.svg-obstacle").first().click();
+  const handle=page.locator('circle[data-kind="obstacle"][data-handle="rotate"]').first();
+  await expect(handle).toBeVisible();
+  const box=await handle.boundingBox();
+  if(!box)throw new Error("Alça de rotação indisponível.");
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2+45,box.y+box.height/2,{steps:6});
+  await page.mouse.up();
+  await expect.poll(()=>updates.some(item=>item.table==="venue_obstacles"&&"geometry" in item.body)).toBeTruthy();
+  const update=updates.find(item=>item.table==="venue_obstacles"&&"geometry" in item.body);
+  expect((update?.body.geometry as {rotation_deg:number}).rotation_deg).not.toBe(0);
+});
