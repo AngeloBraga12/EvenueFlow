@@ -71,3 +71,5 @@
 .plan-selectable:active{cursor:grabbing}
 @media(max-width:760px){.plan-canvas-head{align-items:flex-start;gap:10px;flex-direction:column}.plan-canvas-actions{width:100%}.plan-canvas-actions span:last-child{margin-left:auto}}
 .svg-wall-draft{stroke:#c4e56a;stroke-width:110;stroke-dasharray:220 120;stroke-linecap:round;pointer-events:none}
+
+.plan-canvas-wrap.no-grid{background-image:none}
