@@ -12,6 +12,7 @@ type Wall = Tables<"venue_walls">;
 type Opening = Tables<"venue_openings">;
 type Obstacle = Tables<"venue_obstacles">;
 type Structure = Tables<"venue_fixed_structures">;
+type ProjectVersion = Tables<"project_versions">;
 type Kind = "wall" | "opening" | "obstacle" | "structure";
 type FormState = { id?: string; kind: Kind; name: string; x: string; y: string; endX: string; endY: string; width: string; height: string; thickness: string; ceiling: string; rotation: string; openingType: Opening["opening_type"]; essential: boolean; blocks: boolean };
 const blankForm = (kind: Kind): FormState => ({ kind, name: "", x: "1", y: "1", endX: "5", endY: "1", width: "1", height: "2.1", thickness: "0.15", ceiling: "", rotation: "0", openingType: "door", essential: false, blocks: true });
@@ -32,6 +33,10 @@ export function VenuePlanPage() {
   const [openings, setOpenings] = useState<Opening[]>([]);
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
+  const [historyVersions, setHistoryVersions] = useState<ProjectVersion[]>([]);
+  const [currentVersion, setCurrentVersion] = useState(0);
+  const currentVersionRef = useRef(0);
+  const [historyBusy, setHistoryBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +77,9 @@ export function VenuePlanPage() {
       setOpenings(o.data ?? []);
       setObstacles(b.data ?? []);
       setStructures(s.data ?? []);
+      const [projectResult, versionResult] = await Promise.all([supabase.from("projects").select("current_version").eq("id", v.data.project_id).single(), supabase.from("project_versions").select("*").eq("project_id", v.data.project_id).order("version")]);
+      if (!projectResult.error) { currentVersionRef.current = projectResult.data.current_version; setCurrentVersion(projectResult.data.current_version); }
+      if (!versionResult.error) setHistoryVersions(versionResult.data ?? []);
     }
     setLoading(false);
   }, [supabase, venueId]);
