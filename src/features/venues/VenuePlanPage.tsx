@@ -135,7 +135,7 @@ export function VenuePlanPage() {
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null; const delta = dragDelta; setDragDelta({ x: 0, y: 0 });
     if (!delta.x && !delta.y) return;
-    const jobs: Array<PromiseLike<any>> = [];
+    const jobs: Array<PromiseLike<{ error: { message: string } | null }>> = [];
     for (const key of drag.ids) {
       const [kind, id] = key.split(":") as [Kind, string];
       if (kind === "wall") {
