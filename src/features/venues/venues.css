@@ -1,5 +1,5 @@
 
-.venues-main{margin-left:0}
+.workspace-main.venues-main{margin-left:0}
 .venues-main .breadcrumb{display:flex;align-items:center;gap:7px}
 .venue-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px}
 .venue-count{font:10px 'DM Mono',monospace;color:var(--muted)}
