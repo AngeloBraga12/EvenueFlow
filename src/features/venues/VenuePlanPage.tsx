@@ -490,7 +490,7 @@ export function VenuePlanPage() {
       : kind === "obstacle" ? await supabase.from("venue_obstacles").update({ deleted_at: stamp }).eq("id", id)
       : await supabase.from("venue_fixed_structures").update({ deleted_at: stamp }).eq("id", id);
     if (result.error) setError("Não foi possível arquivar o elemento. Verifique sua permissão.");
-    else { await saveHistory("Arquivar elemento"); setSelected(null); setSelectedKeys([]); await load(); }
+    else { await saveHistory("Arquivar elemento"); setSelected(null); updateSelectedKeys([]); await load(); }
   }
 
   const currentHistory=historyVersions.find(row=>row.version===currentVersion);
