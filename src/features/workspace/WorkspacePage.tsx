@@ -1,6 +1,6 @@
-import { useEffect,useState,type FormEvent } from "react";
+import { useCallback,useEffect,useState,type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity,Archive,Boxes,Building2,CalendarDays,ChevronDown,ClipboardList,FolderKanban,LayoutDashboard,LogOut,Plus,Search,Settings,Users,Workflow } from "lucide-react";
+import { Activity,Boxes,Building2,CalendarDays,ChevronDown,ClipboardList,FolderKanban,LayoutDashboard,LogOut,Plus,Search,Settings,Users,Workflow } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Tables } from "../../../supabase/database.types";
@@ -8,8 +8,8 @@ type Project=Tables<"projects">;
 const nav=[{label:"Início",icon:LayoutDashboard,href:"/app"},{label:"Projetos",icon:FolderKanban,href:"/app/projetos"},{label:"Salões",icon:Building2,href:"/app/saloes"},{label:"Eventos",icon:CalendarDays,href:"/app/eventos"},{label:"Inventário",icon:Boxes,href:"/app/inventario"},{label:"Relatórios",icon:ClipboardList,href:"/app/relatorios"}];
 export function WorkspacePage(){
  const {user,signOut}=useAuth();const navigate=useNavigate();const [projects,setProjects]=useState<Project[]>([]);const [loading,setLoading]=useState(true);const [query,setQuery]=useState("");const [createOpen,setCreateOpen]=useState(false);const [projectName,setProjectName]=useState("");const [projectDescription,setProjectDescription]=useState("");const [saving,setSaving]=useState(false);const [error,setError]=useState("");
- async function load(){if(!user)return;setLoading(true);const {data,error}=await getSupabaseClient().from("projects").select("*").is("deleted_at",null).order("updated_at",{ascending:false}).limit(50);if(error)setError("Não foi possível carregar os projetos. Verifique as permissões da organização.");else setProjects(data??[]);setLoading(false);}
- useEffect(()=>{void load();},[user]);
+ const load=useCallback(async()=>{if(!user)return;setLoading(true);const {data,error}=await getSupabaseClient().from("projects").select("*").is("deleted_at",null).order("updated_at",{ascending:false}).limit(50);if(error)setError("Não foi possível carregar os projetos. Verifique as permissões da organização.");else setProjects(data??[]);setLoading(false);},[user]);
+ useEffect(()=>{void load();},[load]);
  async function createProject(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!user)return;setSaving(true);setError("");try{
   const supabase=getSupabaseClient();let {data:org}=await supabase.from("organizations").select("id").eq("owner_user_id",user.id).is("deleted_at",null).limit(1).maybeSingle();
   if(!org){const slug="workspace-"+user.id.slice(0,8);const created=await supabase.from("organizations").insert({name:"Meu espaço",owner_user_id:user.id,slug}).select("id").single();if(created.error)throw created.error;org=created.data;}
