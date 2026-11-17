@@ -1,6 +1,6 @@
 import "./plan.css";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
-import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop, Magnet, Grid3X3, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop, Magnet, Grid3X3, ZoomIn, ZoomOut, Undo2, Redo2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Json, Tables } from "../../../supabase/database.types";
@@ -202,7 +202,7 @@ export function VenuePlanPage() {
 
   async function ensureHistoryBaseline() {
     if(!venue) throw new Error("Salão indisponível.");
-    if(historyVersions.length>0 || currentVersionRef.current>0) return;
+    if(historyVersions.length>0) return;
     const {data,error}=await supabase.auth.getUser();
     if(error||!data.user) throw new Error("Sessão expirada. Entre novamente para salvar o histórico.");
     const geometry=await readGeometrySnapshot();
@@ -303,13 +303,14 @@ export function VenuePlanPage() {
       else if(kind==="opening"){const item=openings.find(v=>v.id===id);if(!item)continue;const radians=item.rotation_deg*Math.PI/180,x=item.x_mm+dx,y=item.y_mm+dy,ex=x+item.width_mm*Math.cos(radians),ey=y+item.width_mm*Math.sin(radians);if(Math.min(x,ex)<0||Math.min(y,ey)<0||Math.max(x,ex)>venue.width_mm||Math.max(y,ey)>venue.height_mm){setError("O alinhamento ultrapassaria os limites do salão.");return;}jobs.push(supabase.from("venue_openings").update({x_mm:x,y_mm:y}).eq("id",id));}
       else{const list=kind==="obstacle"?obstacles:structures,item=list.find(v=>v.id===id),rect=item?parseSpatialRect(item.geometry):null;if(!rect)continue;const moved={...rect,x_mm:rect.x_mm+dx,y_mm:rect.y_mm+dy};if(!isRotatedRectInsideVenue(moved,venue.width_mm,venue.height_mm)){setError("O alinhamento ultrapassaria os limites do salão.");return;}jobs.push(kind==="obstacle"?supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id):supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));}
     }
-    setSaving(true);const results=await Promise.all(jobs);setSaving(false);if(results.some(result=>result.error))setError("Não foi possível concluir a operação em lote.");else await load();
+    await ensureHistoryBaseline();setSaving(true);const results=await Promise.all(jobs);setSaving(false);if(results.some(result=>result.error))setError("Não foi possível concluir a operação em lote.");else{await recordHistory(operation.startsWith("distribute")?"Distribuir elementos":"Alinhar elementos");await load();}
   }
 
   async function finishCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     const gesture=handleGestureRef.current;
     if(gesture && gesture.pointerId===event.pointerId){
       handleGestureRef.current=null;setSaving(true);let failure="";
+      await ensureHistoryBaseline();
       if(gesture.mode==="resize-rect"||gesture.mode==="rotate-rect"){
         const rect=previewRect?.rect;
         if(rect && venue && !isRotatedRectInsideVenue(rect,venue.width_mm,venue.height_mm)) failure="O elemento precisa permanecer dentro dos limites do salão.";
@@ -328,16 +329,17 @@ export function VenuePlanPage() {
         if(opening && venue){const angle=opening.rotation_deg*Math.PI/180,ex=opening.x_mm+opening.width_mm*Math.cos(angle),ey=opening.y_mm+opening.width_mm*Math.sin(angle);if(Math.min(opening.x_mm,ex)<0||Math.max(opening.x_mm,ex)>venue.width_mm||Math.min(opening.y_mm,ey)<0||Math.max(opening.y_mm,ey)>venue.height_mm)failure="A abertura ultrapassaria os limites do salão.";else{const result=await supabase.from("venue_openings").update({width_mm:opening.width_mm,rotation_deg:opening.rotation_deg}).eq("id",gesture.id);if(result.error)failure="Não foi possível salvar a abertura.";}}
         setPreviewOpening(null);
       }
-      setSaving(false);if(failure)setError(failure);else await load();return;
+      setSaving(false);if(failure)setError(failure);else {await recordHistory(gesture.mode.includes("resize")?"Redimensionar elemento":"Rotacionar elemento");await load();}return;
     }
     const wallStart = wallStartRef.current;
     if (wallStart && wallStart.pointerId === event.pointerId) {
       const start = wallStart; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
       if (venue && draft && (draft.x1 !== draft.x2 || draft.y1 !== draft.y2)) {
         setSaving(true);
+        await ensureHistoryBaseline();
         const result = await supabase.from("venue_walls").insert({ venue_id:venue.id, start_x_mm:start.x, start_y_mm:start.y, end_x_mm:draft.x2, end_y_mm:draft.y2, thickness_mm:150, height_mm:null, metadata:{label:"Parede"} as Json });
         setSaving(false);
-        if (result.error) setError("Não foi possível criar a parede. Verifique sua permissão."); else { setDrawingWall(false); await load(); }
+        if (result.error) setError("Não foi possível criar a parede. Verifique sua permissão."); else { await recordHistory("Desenhar parede"); setDrawingWall(false); await load(); }
       }
       return;
     }
@@ -366,8 +368,10 @@ export function VenuePlanPage() {
         jobs.push(kind==="obstacle" ? supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id) : supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));
       }
     }
+    await ensureHistoryBaseline();
     setSaving(true); const results=await Promise.all(jobs); setSaving(false);
     if(results.some(result=>result.error)) setError("Não foi possível salvar a movimentação. A planta será recarregada.");
+    else await recordHistory("Mover elementos");
     await load();
   }
   function startEdit(kind: Kind, id: string) {
@@ -395,6 +399,7 @@ export function VenuePlanPage() {
     if (!venue || !form) return;
     setSaving(true); setError("");
     try {
+      await ensureHistoryBaseline();
       const x = parseCoordinate(form.x); const y = parseCoordinate(form.y);
       if (form.kind === "wall") {
         const endX = parseCoordinate(form.endX); const endY = parseCoordinate(form.endY);
@@ -430,6 +435,7 @@ export function VenuePlanPage() {
           if (result.error) throw result.error;
         }
       }
+      await recordHistory(form.id?"Editar elemento":"Adicionar elemento");
       setForm(null); await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível salvar o elemento.");
@@ -438,15 +444,19 @@ export function VenuePlanPage() {
 
   async function archive(kind: Kind, id: string) {
     if (!window.confirm("Arquivar este elemento da planta?")) return;
+    await ensureHistoryBaseline();
     const stamp = new Date().toISOString();
     const result = kind === "wall" ? await supabase.from("venue_walls").update({ deleted_at: stamp }).eq("id", id)
       : kind === "opening" ? await supabase.from("venue_openings").update({ deleted_at: stamp }).eq("id", id)
       : kind === "obstacle" ? await supabase.from("venue_obstacles").update({ deleted_at: stamp }).eq("id", id)
       : await supabase.from("venue_fixed_structures").update({ deleted_at: stamp }).eq("id", id);
     if (result.error) setError("Não foi possível arquivar o elemento. Verifique sua permissão.");
-    else { setSelected(null); await load(); }
+    else { await recordHistory("Arquivar elemento"); setSelected(null); setSelectedKeys([]); await load(); }
   }
 
+  const currentHistory=historyVersions.find(row=>row.version===currentVersion);
+  const canUndo=Boolean(currentHistory && parseHistorySnapshot(currentHistory)?.parent_version!==null && parseHistorySnapshot(currentHistory)?.parent_version!==undefined);
+  const canRedo=historyVersions.some(row=>parseHistorySnapshot(row)?.parent_version===currentVersion);
   if (loading) return <div className="screen-loader">Carregando planta técnica…</div>;
   if (!venue) return <main className="plan-shell"><div className="plan-error">{error || "Salão não encontrado."}<Link to="/app/saloes">Voltar aos salões</Link></div></main>;
 
@@ -464,7 +474,7 @@ export function VenuePlanPage() {
     <header className="plan-header"><Link to="/app/saloes" className="plan-back"><ArrowLeft size={16}/> Salões</Link><div><span className="eyebrow">EDITOR DE ESPAÇO · P0</span><h1>{venue.name}</h1><p>{mm(venue.width_mm)} × {mm(venue.height_mm)} m · {area.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²</p></div><span className="plan-unit"><Ruler size={14}/> UNIDADE: MM</span></header>
     {error && <div className="plan-alert" role="alert"><AlertTriangle size={16}/>{error}</div>}
     <div className="plan-workspace">
-      <section className="plan-canvas-panel"><div className="plan-canvas-head"><div><span className="eyebrow">PLANTA BAIXA</span><strong>Arraste para mover · Ctrl/clique para seleção múltipla</strong></div><div className="plan-canvas-actions">{selectedKeys.length>=2&&<div className="plan-align-actions" aria-label="Alinhamento e distribuição"><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("left")} title="Alinhar à esquerda">Esq.</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("center-x")} title="Centralizar horizontalmente">Centro X</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("right")} title="Alinhar à direita">Dir.</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("top")} title="Alinhar ao topo">Topo</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("center-y")} title="Centralizar verticalmente">Centro Y</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("bottom")} title="Alinhar à base">Base</button>{selectedKeys.length>=3&&<><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("distribute-x")} title="Distribuir horizontalmente">Dist. X</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("distribute-y")} title="Distribuir verticalmente">Dist. Y</button></>}</div>}<button type="button" title="Desenhar parede" aria-pressed={drawingWall} className={drawingWall ? "active" : ""} onClick={() => { setDrawingWall(value => !value); setWallDraft(null); setSelectedKeys([]); }}><Plus size={14}/> Parede livre</button><button type="button" title="Encaixe em grade" aria-pressed={snapEnabled} className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled(value => !value)}><Magnet size={14}/> Encaixe</button><button type="button" title="Mostrar ou ocultar grade" aria-pressed={gridVisible} className={gridVisible ? "active" : ""} onClick={() => setGridVisible(value => !value)}><Grid3X3 size={14}/> Grade</button><button type="button" title="Diminuir zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14}/></button><span>{Math.round(zoom * 100)}%</span><button type="button" title="Aumentar zoom" onClick={() => setZoom(value => Math.min(2, Number((value + .1).toFixed(1))))}><ZoomIn size={14}/></button><span>{walls.length + openings.length + obstacles.length + structures.length} elementos</span></div></div>
+      <section className="plan-canvas-panel"><div className="plan-canvas-head"><div><span className="eyebrow">PLANTA BAIXA</span><strong>Arraste para mover · Ctrl/clique para seleção múltipla</strong></div><div className="plan-canvas-actions"><div className="plan-history-actions"><button type="button" title="Desfazer" aria-label="Desfazer" disabled={!canUndo||historyBusy||saving} onClick={()=>void moveHistory("undo")}><Undo2 size={14}/></button><button type="button" title="Refazer" aria-label="Refazer" disabled={!canRedo||historyBusy||saving} onClick={()=>void moveHistory("redo")}><Redo2 size={14}/></button><span>v{currentVersion}</span></div>{selectedKeys.length>=2&&<div className="plan-align-actions" aria-label="Alinhamento e distribuição"><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("left")} title="Alinhar à esquerda">Esq.</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("center-x")} title="Centralizar horizontalmente">Centro X</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("right")} title="Alinhar à direita">Dir.</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("top")} title="Alinhar ao topo">Topo</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("center-y")} title="Centralizar verticalmente">Centro Y</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("bottom")} title="Alinhar à base">Base</button>{selectedKeys.length>=3&&<><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("distribute-x")} title="Distribuir horizontalmente">Dist. X</button><button type="button" disabled={saving} onClick={()=>void applyLayoutOperation("distribute-y")} title="Distribuir verticalmente">Dist. Y</button></>}</div>}<button type="button" title="Desenhar parede" aria-pressed={drawingWall} className={drawingWall ? "active" : ""} onClick={() => { setDrawingWall(value => !value); setWallDraft(null); setSelectedKeys([]); }}><Plus size={14}/> Parede livre</button><button type="button" title="Encaixe em grade" aria-pressed={snapEnabled} className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled(value => !value)}><Magnet size={14}/> Encaixe</button><button type="button" title="Mostrar ou ocultar grade" aria-pressed={gridVisible} className={gridVisible ? "active" : ""} onClick={() => setGridVisible(value => !value)}><Grid3X3 size={14}/> Grade</button><button type="button" title="Diminuir zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14}/></button><span>{Math.round(zoom * 100)}%</span><button type="button" title="Aumentar zoom" onClick={() => setZoom(value => Math.min(2, Number((value + .1).toFixed(1))))}><ZoomIn size={14}/></button><span>{walls.length + openings.length + obstacles.length + structures.length} elementos</span></div></div>
         <div className={gridVisible ? "plan-canvas-wrap" : "plan-canvas-wrap no-grid"}><svg ref={svgRef} className="venue-svg" viewBox={`${-500 + (venue.width_mm + 1000) * (1 - 1 / zoom) / 2} ${-500 + (venue.height_mm + 1000) * (1 - 1 / zoom) / 2} ${(venue.width_mm + 1000) / zoom} ${(venue.height_mm + 1000) / zoom}`} role="img" aria-label={`Planta técnica de ${venue.name}`} onPointerDown={beginCanvasDrag} onPointerMove={canvasPointerMove} onPointerUp={finishCanvasDrag} onPointerCancel={() => { wallStartRef.current = null; dragRef.current = null; handleGestureRef.current=null; setWallDraft(null); setDragDelta({ x: 0, y: 0 }); setPreviewRect(null); setPreviewWall(null); setPreviewOpening(null); }}>
           <defs><pattern id={patternId} width="500" height="500" patternUnits="userSpaceOnUse"><path d="M 500 0 L 0 0 0 500" className="svg-grid-line" fill="none"/></pattern></defs>
           {gridVisible && <rect x="-500" y="-500" width={venue.width_mm + 1000} height={venue.height_mm + 1000} fill={`url(#${patternId})`}/>}
