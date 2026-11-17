@@ -4,7 +4,8 @@ import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Json, Tables } from "../../../supabase/database.types";
-import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect } from "./venue-geometry";
+import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect, type PointMm, type SpatialRect } from "./venue-geometry";
+import { alignBounds, distributeBounds, isRotatedRectInsideVenue, rectBounds, rectHandlePoints, rectRotationHandle, resizeRotatedRect, rotatedRectAt, type RectHandle } from "./venue-geometry-interactions";
 
 type Venue = Tables<"venues">;
 type Wall = Tables<"venue_walls">;
@@ -44,6 +45,10 @@ export function VenuePlanPage() {
   const [wallDraft, setWallDraft] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const wallStartRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 });
+  const [previewRect, setPreviewRect] = useState<{kind:Kind;id:string;rect:SpatialRect}|null>(null);
+  const [previewWall, setPreviewWall] = useState<{id:string;start_x_mm:number;start_y_mm:number;end_x_mm:number;end_y_mm:number}|null>(null);
+  const [previewOpening, setPreviewOpening] = useState<{id:string;x_mm:number;y_mm:number;width_mm:number;rotation_deg:number}|null>(null);
+  const handleGestureRef = useRef<{pointerId:number;mode:"resize-rect"|"rotate-rect"|"wall-point"|"rotate-wall"|"resize-opening"|"rotate-opening";kind:Kind;id:string;start:PointMm;initialPointer:PointMm;handle?:RectHandle|"start"|"end";rect?:SpatialRect;wall?:Wall;opening?:Opening}|null>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; ids: string[] } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const patternId = useId().replace(/:/g, "");
@@ -78,6 +83,29 @@ export function VenuePlanPage() {
   function startCreate(kind: Kind) { setError(""); setDrawingWall(false); setWallDraft(null); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
   function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return;
+    const handleTarget = (event.target as Element).closest<SVGElement>("[data-handle][data-kind][data-id]");
+    if (handleTarget) {
+      const kind = handleTarget.dataset.kind as Kind, id = handleTarget.dataset.id ?? "", handle = handleTarget.dataset.handle ?? "";
+      const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+      const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
+      const local = point.matrixTransform(matrix.inverse()); const initialPointer={x_mm:local.x,y_mm:local.y};
+      if ((kind==="obstacle"||kind==="structure") && handle!=="rotate") {
+        const item=(kind==="obstacle"?obstacles:structures).find(value=>value.id===id); const rect=item?parseSpatialRect(item.geometry):null;
+        if (!rect || !["n","ne","e","se","s","sw","w","nw"].includes(handle)) return;
+        handleGestureRef.current={pointerId:event.pointerId,mode:"resize-rect",kind,id,start:initialPointer,initialPointer,handle:handle as RectHandle,rect};
+      } else if ((kind==="obstacle"||kind==="structure") && handle==="rotate") {
+        const item=(kind==="obstacle"?obstacles:structures).find(value=>value.id===id); const rect=item?parseSpatialRect(item.geometry):null;
+        if (!rect) return;
+        handleGestureRef.current={pointerId:event.pointerId,mode:"rotate-rect",kind,id,start:initialPointer,initialPointer,rect};
+      } else if (kind==="wall") {
+        const wall=walls.find(value=>value.id===id); if(!wall)return;
+        handleGestureRef.current={pointerId:event.pointerId,mode:handle==="rotate"?"rotate-wall":"wall-point",kind,id,start:initialPointer,initialPointer,handle:handle as "start"|"end",wall};
+      } else if (kind==="opening") {
+        const opening=openings.find(value=>value.id===id); if(!opening)return;
+        handleGestureRef.current={pointerId:event.pointerId,mode:handle==="rotate"?"rotate-opening":"resize-opening",kind,id,start:initialPointer,initialPointer,opening};
+      }
+      setSelected({kind,id}); setSelectedKeys([keyOf(kind,id)]); svgRef.current.setPointerCapture(event.pointerId); return;
+    }
     const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
     if (!target) {
       if (!drawingWall || !venue) return;
@@ -102,6 +130,36 @@ export function VenuePlanPage() {
     svgRef.current.setPointerCapture(event.pointerId);
   }
   function canvasPointerMove(event: PointerEvent<SVGSVGElement>) {
+    const gesture=handleGestureRef.current;
+    if(gesture && gesture.pointerId===event.pointerId && svgRef.current){
+      const point=svgRef.current.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
+      const matrix=svgRef.current.getScreenCTM();if(!matrix)return;
+      const local=point.matrixTransform(matrix.inverse());const current={x_mm:local.x,y_mm:local.y};
+      if(gesture.mode==="resize-rect" && gesture.rect && gesture.handle){
+        const step=snapEnabled?100:1;const delta={x_mm:Math.round((current.x_mm-gesture.start.x_mm)/step)*step,y_mm:Math.round((current.y_mm-gesture.start.y_mm)/step)*step};
+        setPreviewRect({kind:gesture.kind,id:gesture.id,rect:resizeRotatedRect(gesture.rect,gesture.handle,delta)});
+      }else if(gesture.mode==="rotate-rect" && gesture.rect){
+        setPreviewRect({kind:gesture.kind,id:gesture.id,rect:rotatedRectAt(gesture.rect,current,gesture.initialPointer,gesture.rect.rotation_deg)});
+      }else if(gesture.mode==="wall-point" && gesture.wall && gesture.handle){
+        const step=snapEnabled?100:1;const x=Math.max(0,Math.min(venue?.width_mm??0,Math.round(current.x_mm/step)*step));const y=Math.max(0,Math.min(venue?.height_mm??0,Math.round(current.y_mm/step)*step));
+        setPreviewWall({id:gesture.id,start_x_mm:gesture.handle==="start"?x:gesture.wall.start_x_mm,start_y_mm:gesture.handle==="start"?y:gesture.wall.start_y_mm,end_x_mm:gesture.handle==="end"?x:gesture.wall.end_x_mm,end_y_mm:gesture.handle==="end"?y:gesture.wall.end_y_mm});
+      }else if(gesture.mode==="rotate-wall" && gesture.wall){
+        const wall=gesture.wall,cx=(wall.start_x_mm+wall.end_x_mm)/2,cy=(wall.start_y_mm+wall.end_y_mm)/2;
+        const before=Math.atan2(gesture.initialPointer.y_mm-cy,gesture.initialPointer.x_mm-cx),after=Math.atan2(current.y_mm-cy,current.x_mm-cx),angle=after-before,cos=Math.cos(angle),sin=Math.sin(angle);
+        const rotatePoint=(x:number,y:number)=>({x_mm:Math.round(cx+(x-cx)*cos-(y-cy)*sin),y_mm:Math.round(cy+(x-cx)*sin+(y-cy)*cos)});
+        const a=rotatePoint(wall.start_x_mm,wall.start_y_mm),b=rotatePoint(wall.end_x_mm,wall.end_y_mm);
+        setPreviewWall({id:gesture.id,start_x_mm:a.x_mm,start_y_mm:a.y_mm,end_x_mm:b.x_mm,end_y_mm:b.y_mm});
+      }else if(gesture.mode==="resize-opening" && gesture.opening){
+        const o=gesture.opening,angle=o.rotation_deg*Math.PI/180,dx=current.x_mm-o.x_mm,dy=current.y_mm-o.y_mm;
+        const width=Math.max(100,Math.round(dx*Math.cos(angle)+dy*Math.sin(angle)));
+        setPreviewOpening({id:o.id,x_mm:o.x_mm,y_mm:o.y_mm,width_mm:width,rotation_deg:o.rotation_deg});
+      }else if(gesture.mode==="rotate-opening" && gesture.opening){
+        const o=gesture.opening,before=Math.atan2(gesture.initialPointer.y_mm-o.y_mm,gesture.initialPointer.x_mm-o.x_mm),after=Math.atan2(current.y_mm-o.y_mm,current.x_mm-o.x_mm);
+        const rotation=((Math.round(o.rotation_deg+(after-before)*180/Math.PI)%360)+360)%360;
+        setPreviewOpening({id:o.id,x_mm:o.x_mm,y_mm:o.y_mm,width_mm:o.width_mm,rotation_deg:rotation});
+      }
+      return;
+    }
     const wallStart = wallStartRef.current;
     if (wallStart && wallStart.pointerId === event.pointerId && svgRef.current && venue) {
       const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
@@ -120,6 +178,29 @@ export function VenuePlanPage() {
     setDragDelta({ x, y });
   }
   async function finishCanvasDrag(event: PointerEvent<SVGSVGElement>) {
+    const gesture=handleGestureRef.current;
+    if(gesture && gesture.pointerId===event.pointerId){
+      handleGestureRef.current=null;setSaving(true);let failure="";
+      if(gesture.mode==="resize-rect"||gesture.mode==="rotate-rect"){
+        const rect=previewRect?.rect;
+        if(rect && venue && !isRotatedRectInsideVenue(rect,venue.width_mm,venue.height_mm)) failure="O elemento precisa permanecer dentro dos limites do salão.";
+        else if(rect){
+          const result=gesture.kind==="obstacle"?await supabase.from("venue_obstacles").update({geometry:rect as unknown as Json}).eq("id",gesture.id):await supabase.from("venue_fixed_structures").update({geometry:rect as unknown as Json}).eq("id",gesture.id);
+          if(result.error)failure="Não foi possível salvar a geometria.";
+        }
+        setPreviewRect(null);
+      }else if(gesture.mode==="wall-point"||gesture.mode==="rotate-wall"){
+        const wall=previewWall;
+        if(wall && venue && [wall.start_x_mm,wall.start_y_mm,wall.end_x_mm,wall.end_y_mm].some((v)=>v<0) || wall && venue && (wall.start_x_mm>venue.width_mm||wall.end_x_mm>venue.width_mm||wall.start_y_mm>venue.height_mm||wall.end_y_mm>venue.height_mm)) failure="A parede ultrapassaria os limites do salão.";
+        else if(wall){const result=await supabase.from("venue_walls").update({start_x_mm:wall.start_x_mm,start_y_mm:wall.start_y_mm,end_x_mm:wall.end_x_mm,end_y_mm:wall.end_y_mm}).eq("id",gesture.id);if(result.error)failure="Não foi possível salvar a parede.";}
+        setPreviewWall(null);
+      }else if(gesture.mode==="resize-opening"||gesture.mode==="rotate-opening"){
+        const opening=previewOpening;
+        if(opening && venue){const angle=opening.rotation_deg*Math.PI/180,ex=opening.x_mm+opening.width_mm*Math.cos(angle),ey=opening.y_mm+opening.width_mm*Math.sin(angle);if(Math.min(opening.x_mm,ex)<0||Math.max(opening.x_mm,ex)>venue.width_mm||Math.min(opening.y_mm,ey)<0||Math.max(opening.y_mm,ey)>venue.height_mm)failure="A abertura ultrapassaria os limites do salão.";else{const result=await supabase.from("venue_openings").update({width_mm:opening.width_mm,rotation_deg:opening.rotation_deg}).eq("id",gesture.id);if(result.error)failure="Não foi possível salvar a abertura.";}}
+        setPreviewOpening(null);
+      }
+      setSaving(false);if(failure)setError(failure);else await load();return;
+    }
     const wallStart = wallStartRef.current;
     if (wallStart && wallStart.pointerId === event.pointerId) {
       const start = wallStart; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
@@ -255,7 +336,7 @@ export function VenuePlanPage() {
     {error && <div className="plan-alert" role="alert"><AlertTriangle size={16}/>{error}</div>}
     <div className="plan-workspace">
       <section className="plan-canvas-panel"><div className="plan-canvas-head"><div><span className="eyebrow">PLANTA BAIXA</span><strong>Arraste para mover · Ctrl/clique para seleção múltipla</strong></div><div className="plan-canvas-actions"><button type="button" title="Desenhar parede" aria-pressed={drawingWall} className={drawingWall ? "active" : ""} onClick={() => { setDrawingWall(value => !value); setWallDraft(null); setSelectedKeys([]); }}><Plus size={14}/> Parede livre</button><button type="button" title="Encaixe em grade" aria-pressed={snapEnabled} className={snapEnabled ? "active" : ""} onClick={() => setSnapEnabled(value => !value)}><Magnet size={14}/> Encaixe</button><button type="button" title="Mostrar ou ocultar grade" aria-pressed={gridVisible} className={gridVisible ? "active" : ""} onClick={() => setGridVisible(value => !value)}><Grid3X3 size={14}/> Grade</button><button type="button" title="Diminuir zoom" onClick={() => setZoom(value => Math.max(.5, Number((value - .1).toFixed(1))))}><ZoomOut size={14}/></button><span>{Math.round(zoom * 100)}%</span><button type="button" title="Aumentar zoom" onClick={() => setZoom(value => Math.min(2, Number((value + .1).toFixed(1))))}><ZoomIn size={14}/></button><span>{walls.length + openings.length + obstacles.length + structures.length} elementos</span></div></div>
-        <div className={gridVisible ? "plan-canvas-wrap" : "plan-canvas-wrap no-grid"}><svg ref={svgRef} className="venue-svg" viewBox={`${-500 + (venue.width_mm + 1000) * (1 - 1 / zoom) / 2} ${-500 + (venue.height_mm + 1000) * (1 - 1 / zoom) / 2} ${(venue.width_mm + 1000) / zoom} ${(venue.height_mm + 1000) / zoom}`} role="img" aria-label={`Planta técnica de ${venue.name}`} onPointerDown={beginCanvasDrag} onPointerMove={canvasPointerMove} onPointerUp={finishCanvasDrag} onPointerCancel={() => { wallStartRef.current = null; dragRef.current = null; setWallDraft(null); setDragDelta({ x: 0, y: 0 }); }}>
+        <div className={gridVisible ? "plan-canvas-wrap" : "plan-canvas-wrap no-grid"}><svg ref={svgRef} className="venue-svg" viewBox={`${-500 + (venue.width_mm + 1000) * (1 - 1 / zoom) / 2} ${-500 + (venue.height_mm + 1000) * (1 - 1 / zoom) / 2} ${(venue.width_mm + 1000) / zoom} ${(venue.height_mm + 1000) / zoom}`} role="img" aria-label={`Planta técnica de ${venue.name}`} onPointerDown={beginCanvasDrag} onPointerMove={canvasPointerMove} onPointerUp={finishCanvasDrag} onPointerCancel={() => { wallStartRef.current = null; dragRef.current = null; handleGestureRef.current=null; setWallDraft(null); setDragDelta({ x: 0, y: 0 }); setPreviewRect(null); setPreviewWall(null); setPreviewOpening(null); }}>
           <defs><pattern id={patternId} width="500" height="500" patternUnits="userSpaceOnUse"><path d="M 500 0 L 0 0 0 500" className="svg-grid-line" fill="none"/></pattern></defs>
           {gridVisible && <rect x="-500" y="-500" width={venue.width_mm + 1000} height={venue.height_mm + 1000} fill={`url(#${patternId})`}/>}
           <rect x="0" y="0" width={venue.width_mm} height={venue.height_mm} className="svg-room"/>
