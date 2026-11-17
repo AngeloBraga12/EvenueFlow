@@ -319,18 +319,20 @@ export function VenuePlanPage() {
   }
 
 
+  const moveHistoryRef=useRef(moveHistory);
+  useEffect(()=>{moveHistoryRef.current=moveHistory;});
   useEffect(()=>{
     const onKeyDown=(event:KeyboardEvent)=>{
       const target=event.target as HTMLElement|null;
       if(target && (target.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)))return;
       if(!(event.ctrlKey||event.metaKey))return;
       const key=event.key.toLowerCase();
-      if(key==="z"){event.preventDefault();void moveHistory(event.shiftKey?"redo":"undo");}
-      else if(key==="y"){event.preventDefault();void moveHistory("redo");}
+      if(key==="z"){event.preventDefault();void moveHistoryRef.current(event.shiftKey?"redo":"undo");}
+      else if(key==="y"){event.preventDefault();void moveHistoryRef.current("redo");}
     };
     window.addEventListener("keydown",onKeyDown);
     return()=>window.removeEventListener("keydown",onKeyDown);
-  },[moveHistory]);
+  },[]);
 
   async function applyLayoutOperation(operation:"left"|"center-x"|"right"|"top"|"center-y"|"bottom"|"distribute-x"|"distribute-y") {
     if(!venue || selectedKeys.length<(operation.startsWith("distribute")?3:2)) return;
