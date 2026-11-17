@@ -77,9 +77,12 @@ export function resizeRotatedRect(rect: SpatialRect, handle: RectHandle, delta: 
   const movedWorld = { x_mm: movingWorld.x_mm + delta.x_mm, y_mm: movingWorld.y_mm + delta.y_mm };
   const movedLocal = toLocal(movedWorld, center, rect.rotation_deg);
   const anchor = toLocal(anchorWorld, center, rect.rotation_deg);
-  const left = Math.min(anchor.x_mm, movedLocal.x_mm), top = Math.min(anchor.y_mm, movedLocal.y_mm);
-  const width = Math.max(minimum, Math.abs(movedLocal.x_mm - anchor.x_mm));
-  const height = Math.max(minimum, Math.abs(movedLocal.y_mm - anchor.y_mm));
+  const horizontal = handle.includes("e") || handle.includes("w");
+  const vertical = handle.includes("n") || handle.includes("s");
+  const left = horizontal ? Math.min(anchor.x_mm, movedLocal.x_mm) : rect.x_mm;
+  const top = vertical ? Math.min(anchor.y_mm, movedLocal.y_mm) : rect.y_mm;
+  const width = horizontal ? Math.max(minimum, Math.abs(movedLocal.x_mm - anchor.x_mm)) : rect.width_mm;
+  const height = vertical ? Math.max(minimum, Math.abs(movedLocal.y_mm - anchor.y_mm)) : rect.height_mm;
   const worldTopLeft = toWorld({ x_mm:left, y_mm:top }, center, rect.rotation_deg);
   return { ...rect, x_mm:round(worldTopLeft.x_mm), y_mm:round(worldTopLeft.y_mm), width_mm:round(width), height_mm:round(height) };
 }
