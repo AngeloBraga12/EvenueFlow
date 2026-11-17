@@ -4,7 +4,7 @@ import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Json, Tables } from "../../../supabase/database.types";
-import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect, type SpatialRect } from "./venue-geometry";
+import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect, } from "./venue-geometry";
 
 type Venue = Tables<"venues">;
 type Wall = Tables<"venue_walls">;
@@ -15,6 +15,7 @@ type Kind = "wall" | "opening" | "obstacle" | "structure";
 type FormState = { id?: string; kind: Kind; name: string; x: string; y: string; endX: string; endY: string; width: string; height: string; thickness: string; ceiling: string; rotation: string; openingType: Opening["opening_type"]; essential: boolean; blocks: boolean };
 const blankForm = (kind: Kind): FormState => ({ kind, name: "", x: "1", y: "1", endX: "5", endY: "1", width: "1", height: "2.1", thickness: "0.15", ceiling: "", rotation: "0", openingType: "door", essential: false, blocks: true });
 const mm = (value: number) => (value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+const inputMeters = (value: number) => (value / 1000).toString();
 const parseMm = (value: string) => metersToMillimeters(Number(value));
 const parseCoordinate = (value: string) => { const n = Number(value); if (!Number.isFinite(n) || n < 0) throw new RangeError("Coordenadas devem ser zero ou positivas."); const result = Math.round(n * 1000); if (!Number.isSafeInteger(result)) throw new RangeError("Coordenada fora do intervalo permitido."); return result; };
 const labelForWall = (wall: Wall, index: number) => {
@@ -70,16 +71,16 @@ export function VenuePlanPage() {
     if (kind === "wall") {
       const item = walls.find(x => x.id === id); if (!item) return;
       const meta = item.metadata as Record<string, Json | undefined>;
-      setForm({ ...base, id, name: typeof meta.label === "string" ? meta.label : "Parede", x: mm(item.start_x_mm), y: mm(item.start_y_mm), endX: mm(item.end_x_mm), endY: mm(item.end_y_mm), thickness: mm(item.thickness_mm), ceiling: item.height_mm ? mm(item.height_mm) : "" });
+      setForm({ ...base, id, name: typeof meta.label === "string" ? meta.label : "Parede", x: inputMeters(item.start_x_mm), y: inputMeters(item.start_y_mm), endX: inputMeters(item.end_x_mm), endY: inputMeters(item.end_y_mm), thickness: inputMeters(item.thickness_mm), ceiling: item.height_mm ? inputMeters(item.height_mm) : "" });
     } else if (kind === "opening") {
       const item = openings.find(x => x.id === id); if (!item) return;
-      setForm({ ...base, id, x: mm(item.x_mm), y: mm(item.y_mm), width: mm(item.width_mm), height: item.height_mm ? mm(item.height_mm) : "", rotation: String(item.rotation_deg), openingType: item.opening_type, essential: item.is_essential });
+      setForm({ ...base, id, x: inputMeters(item.x_mm), y: inputMeters(item.y_mm), width: inputMeters(item.width_mm), height: item.height_mm ? inputMeters(item.height_mm) : "", rotation: String(item.rotation_deg), openingType: item.opening_type, essential: item.is_essential });
     } else {
       const list = kind === "obstacle" ? obstacles : structures;
       const item = list.find(x => x.id === id); if (!item) return;
       const rect = parseSpatialRect(item.geometry);
       if (!rect) { setError("A geometria salva possui um formato não reconhecido e não pode ser editada nesta versão."); return; }
-      setForm({ ...base, id, name: item.name, x: mm(rect.x_mm), y: mm(rect.y_mm), width: mm(rect.width_mm), height: mm(rect.height_mm) });
+      setForm({ ...base, id, name: item.name, x: inputMeters(rect.x_mm), y: inputMeters(rect.y_mm), width: inputMeters(rect.width_mm), height: inputMeters(rect.height_mm) });
     }
     setError("");
   }
@@ -103,7 +104,7 @@ export function VenuePlanPage() {
         const height = form.height.trim() ? parseMm(form.height) : null;
         const rotation = Number(form.rotation);
         if (!Number.isFinite(rotation) || rotation < 0 || rotation >= 360 || !Number.isInteger(rotation)) throw new Error("A rotação deve ser um inteiro entre 0° e 359°.");
-        if (x < 0 || y < 0 || x + width > venue.width_mm || y > venue.height_mm) throw new Error("A abertura deve ficar dentro dos limites do salão.");
+        const radians = rotation * Math.PI / 180;\n        const endX = x + width * Math.cos(radians);\n        const endY = y + width * Math.sin(radians);\n        if (Math.min(x, endX) < 0 || Math.max(x, endX) > venue.width_mm || Math.min(y, endY) < 0 || Math.max(y, endY) > venue.height_mm) throw new Error("A abertura deve ficar dentro dos limites do salão.");
         const payload = { venue_id: venue.id, x_mm: x, y_mm: y, width_mm: width, height_mm: height, rotation_deg: rotation, opening_type: form.openingType, is_essential: form.essential };
         const result = form.id ? await supabase.from("venue_openings").update(payload).eq("id", form.id) : await supabase.from("venue_openings").insert(payload);
         if (result.error) throw result.error;
