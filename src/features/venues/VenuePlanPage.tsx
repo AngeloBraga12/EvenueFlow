@@ -202,16 +202,17 @@ export function VenuePlanPage() {
 
   async function ensureHistoryBaseline() {
     if(!venue) throw new Error("Salão indisponível.");
-    if(historyVersions.length>0) return;
+    if(historyVersions.some(row=>row.version===currentVersionRef.current&&parseHistorySnapshot(row))) return;
     const {data,error}=await supabase.auth.getUser();
     if(error||!data.user) throw new Error("Sessão expirada. Entre novamente para salvar o histórico.");
     const geometry=await readGeometrySnapshot();
-    const version=Math.max(1,currentVersionRef.current);
+    const version=Math.max(0,currentVersionRef.current,...historyVersions.map(row=>row.version))+1;
     const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:null,label:"Estado inicial",geometry};
     const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label:"Estado inicial",snapshot:snapshot as unknown as Json});
     if(inserted.error) throw inserted.error;
-    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id);
+    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",currentVersionRef.current).select("id").maybeSingle();
     if(updated.error) throw updated.error;
+    if(!updated.data) throw new Error("O projeto mudou em outra sessão. Recarregue a planta antes de editar.");
     currentVersionRef.current=version;setCurrentVersion(version);
     const loaded=await supabase.from("project_versions").select("*").eq("project_id",venue.project_id).order("version");
     if(!loaded.error)setHistoryVersions(loaded.data??[]);
@@ -384,7 +385,7 @@ export function VenuePlanPage() {
         const list=kind==="obstacle"?obstacles:structures; const item=list.find(value=>value.id===id); if(!item) continue;
         const rect=parseSpatialRect(item.geometry); if(!rect) continue;
         const moved={...rect,x_mm:rect.x_mm+delta.x,y_mm:rect.y_mm+delta.y};
-        if(!isRectInsideVenue(moved,venue.width_mm,venue.height_mm)){setError("A movimentação ultrapassaria os limites do salão.");return;}
+        if(!isRotatedRectInsideVenue(moved,venue.width_mm,venue.height_mm)){setError("A movimentação ultrapassaria os limites do salão.");return;}
         jobs.push(kind==="obstacle" ? supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id) : supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));
       }
     }
