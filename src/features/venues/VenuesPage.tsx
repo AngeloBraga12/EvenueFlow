@@ -1,3 +1,4 @@
+import "./venues.css";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ArrowLeft, Building2, Edit3, Plus, Ruler, Search, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
