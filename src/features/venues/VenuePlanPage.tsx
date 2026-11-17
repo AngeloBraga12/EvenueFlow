@@ -1,6 +1,6 @@
 import "./plan.css";
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop, Magnet, Grid3X3, ZoomIn, ZoomOut } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Json, Tables } from "../../../supabase/database.types";
@@ -36,6 +36,13 @@ export function VenuePlanPage() {
   const [error, setError] = useState("");
   const [form, setForm] = useState<FormState | null>(null);
   const [selected, setSelected] = useState<{ kind: Kind; id: string } | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [gridVisible, setGridVisible] = useState(true);
+  const [zoom, setZoom] = useState(1);
+  const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; ids: string[] } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const patternId = useId().replace(/:/g, "");
 
   const load = useCallback(async () => {
@@ -64,7 +71,61 @@ export function VenuePlanPage() {
   useEffect(() => { void load(); }, [load]);
 
   const area = useMemo(() => venue ? venue.width_mm * venue.height_mm / 1_000_000 : 0, [venue]);
-  function startCreate(kind: Kind) { setError(""); setSelected(null); setForm(blankForm(kind)); }
+  function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
+  function startCreate(kind: Kind) { setError(""); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
+  function beginCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+    const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
+    if (!target || !svgRef.current) return;
+    const kind = target.dataset.kind as Kind; const id = target.dataset.id;
+    if (!id || !["wall", "opening", "obstacle", "structure"].includes(kind)) return;
+    const key = keyOf(kind, id);
+    const next = event.ctrlKey || event.metaKey ? (selectedKeys.includes(key) ? selectedKeys.filter(value => value !== key) : [...selectedKeys, key]) : selectedKeys.includes(key) ? selectedKeys : [key];
+    setSelectedKeys(next); setSelected({ kind, id });
+    if (event.ctrlKey || event.metaKey) return;
+    const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+    const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
+    const local = point.matrixTransform(matrix.inverse());
+    dragRef.current = { pointerId: event.pointerId, startX: local.x, startY: local.y, ids: next.length ? next : [key] };
+    svgRef.current.setPointerCapture(event.pointerId);
+  }
+  function canvasPointerMove(event: React.PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId || !svgRef.current) return;
+    const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+    const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
+    const local = point.matrixTransform(matrix.inverse());
+    let x = Math.round(local.x - drag.startX), y = Math.round(local.y - drag.startY);
+    if (snapEnabled) { x = Math.round(x / 100) * 100; y = Math.round(y / 100) * 100; }
+    setDragDelta({ x, y });
+  }
+  async function finishCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+    const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null; const delta = dragDelta; setDragDelta({ x: 0, y: 0 });
+    if (!delta.x && !delta.y) return;
+    const jobs: Array<Promise<any>> = [];
+    for (const key of drag.ids) {
+      const [kind, id] = key.split(":") as [Kind, string];
+      if (kind === "wall") {
+        const item = walls.find(value => value.id === id); if (!item) continue;
+        const x1=item.start_x_mm+delta.x,y1=item.start_y_mm+delta.y,x2=item.end_x_mm+delta.x,y2=item.end_y_mm+delta.y;
+        if (Math.min(x1,x2)<0 || Math.min(y1,y2)<0 || Math.max(x1,x2)>venue.width_mm || Math.max(y1,y2)>venue.height_mm) { setError("A movimentação ultrapassaria os limites do salão."); return; }
+        jobs.push(supabase.from("venue_walls").update({start_x_mm:x1,start_y_mm:y1,end_x_mm:x2,end_y_mm:y2}).eq("id",id));
+      } else if (kind === "opening") {
+        const item=openings.find(value=>value.id===id); if(!item) continue;
+        const r=item.rotation_deg*Math.PI/180, ex=item.x_mm+item.width_mm*Math.cos(r)+delta.x, ey=item.y_mm+item.width_mm*Math.sin(r)+delta.y, x=item.x_mm+delta.x,y=item.y_mm+delta.y;
+        if(Math.min(x,ex)<0 || Math.min(y,ey)<0 || Math.max(x,ex)>venue.width_mm || Math.max(y,ey)>venue.height_mm){setError("A movimentação ultrapassaria os limites do salão.");return;}
+        jobs.push(supabase.from("venue_openings").update({x_mm:x,y_mm:y}).eq("id",id));
+      } else {
+        const list=kind==="obstacle"?obstacles:structures; const item=list.find(value=>value.id===id); if(!item) continue;
+        const rect=parseSpatialRect(item.geometry); if(!rect) continue;
+        const moved={...rect,x_mm:rect.x_mm+delta.x,y_mm:rect.y_mm+delta.y};
+        if(!isRectInsideVenue(moved,venue.width_mm,venue.height_mm)){setError("A movimentação ultrapassaria os limites do salão.");return;}
+        jobs.push(kind==="obstacle" ? supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id) : supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));
+      }
+    }
+    setSaving(true); const results=await Promise.all(jobs); setSaving(false);
+    if(results.some(result=>result.error)) setError("Não foi possível salvar a movimentação. A planta será recarregada.");
+    await load();
+  }
   function startEdit(kind: Kind, id: string) {
     if (!venue) return;
     const base = blankForm(kind);
