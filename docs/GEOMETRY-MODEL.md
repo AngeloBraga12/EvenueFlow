@@ -72,7 +72,7 @@ As cinco tabelas relacionadas ao espaço têm RLS habilitado e quatro políticas
 - Aberturas exibem alça para alterar largura e alça de rotação.
 - A seleção múltipla é feita com Ctrl/Cmd + clique. Os comandos de alinhamento usam bounding boxes; distribuição exige pelo menos três elementos.
 - As operações são validadas no cliente contra o limite do salão. A política RLS continua sendo a fronteira de autorização no servidor.
-- O histórico geométrico usa project_versions.snapshot com schema_version: 1, kind: venue_geometry, parent_version e os quatro conjuntos de elementos do salão. projects.current_version identifica o cursor atual. Versões anteriores são imutáveis; novas edições após desfazer criam um novo ramo por referência ao pai.
+- O histórico geométrico usa project_versions.snapshot com schema_version: 2, kind: project_venue_geometry, project_id, parent_version e os quatro conjuntos de elementos de todos os salões ativos do projeto. projects.current_version identifica o cursor atual. Versões anteriores são imutáveis; novas edições após desfazer criam um novo ramo por referência ao pai. Snapshots legados de escopo individual não são restaurados como se fossem snapshots de projeto.
 - Desfazer/refazer restaura os registros com upsert e arquivamento lógico, preservando IDs. A restauração é feita por múltiplas operações REST e não constitui uma transação única; em falha parcial, a interface informa a necessidade de recarregar antes de continuar.
 
 ## Testes
