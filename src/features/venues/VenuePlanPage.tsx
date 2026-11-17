@@ -289,9 +289,9 @@ export function VenuePlanPage() {
     if(restored.some(result=>result.error)) throw new Error("A restauração não foi concluída por completo. Os elementos existentes foram preservados.");
     const [currentWalls,currentOpenings,currentObstacles,currentStructures]=await Promise.all([
       supabase.from("venue_walls").select("id").in("venue_id",venueIds).is("deleted_at",null),
-      supabase.from("venue_openings").select("id").eq("venue_id",venue.id).is("deleted_at",null),
-      supabase.from("venue_obstacles").select("id").eq("venue_id",venue.id).is("deleted_at",null),
-      supabase.from("venue_fixed_structures").select("id").eq("venue_id",venue.id).is("deleted_at",null)
+      supabase.from("venue_openings").select("id").in("venue_id",venueIds).is("deleted_at",null),
+      supabase.from("venue_obstacles").select("id").in("venue_id",venueIds).is("deleted_at",null),
+      supabase.from("venue_fixed_structures").select("id").in("venue_id",venueIds).is("deleted_at",null)
     ]);
     if(currentWalls.error||currentOpenings.error||currentObstacles.error||currentStructures.error)throw new Error("Não foi possível reconciliar os elementos da versão.");
     const archiveResults=await Promise.all([
