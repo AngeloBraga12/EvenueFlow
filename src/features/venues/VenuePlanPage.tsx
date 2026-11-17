@@ -102,13 +102,14 @@ export function VenuePlanPage() {
     svgRef.current.setPointerCapture(event.pointerId);
   }
   function canvasPointerMove(event: PointerEvent<SVGSVGElement>) {
-    if (wallStartRef.current?.pointerId === event.pointerId && svgRef.current && venue) {
+    const wallStart = wallStartRef.current;
+    if (wallStart && wallStart.pointerId === event.pointerId && svgRef.current && venue) {
       const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
       const matrix = svgRef.current.getScreenCTM(); if (!matrix) return;
       const local = point.matrixTransform(matrix.inverse()); const step = snapEnabled ? 100 : 1;
       const x = Math.max(0, Math.min(venue.width_mm, Math.round(local.x / step) * step));
       const y = Math.max(0, Math.min(venue.height_mm, Math.round(local.y / step) * step));
-      setWallDraft({ x1:wallStartRef.current.x, y1:wallStartRef.current.y, x2:x, y2:y }); return;
+      setWallDraft({ x1:wallStart.x, y1:wallStart.y, x2:x, y2:y }); return;
     }
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId || !svgRef.current) return;
     const point = svgRef.current.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
@@ -119,8 +120,9 @@ export function VenuePlanPage() {
     setDragDelta({ x, y });
   }
   async function finishCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
-    if (wallStartRef.current?.pointerId === event.pointerId) {
-      const start = wallStartRef.current; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
+    const wallStart = wallStartRef.current;
+    if (wallStart && wallStart.pointerId === event.pointerId) {
+      const start = wallStart; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
       if (venue && draft && (draft.x1 !== draft.x2 || draft.y1 !== draft.y2)) {
         setSaving(true);
         const result = await supabase.from("venue_walls").insert({ venue_id:venue.id, start_x_mm:start.x, start_y_mm:start.y, end_x_mm:draft.x2, end_y_mm:draft.y2, thickness_mm:150, height_mm:null, metadata:{label:"Parede"} as Json });
