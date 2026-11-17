@@ -4,7 +4,7 @@ import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
 import type { Json, Tables } from "../../../supabase/database.types";
-import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect, } from "./venue-geometry";
+import { isPointInsideVenue, isRectInsideVenue, makeSpatialRect, metersToMillimeters, parseSpatialRect } from "./venue-geometry";
 
 type Venue = Tables<"venues">;
 type Wall = Tables<"venue_walls">;
@@ -104,7 +104,10 @@ export function VenuePlanPage() {
         const height = form.height.trim() ? parseMm(form.height) : null;
         const rotation = Number(form.rotation);
         if (!Number.isFinite(rotation) || rotation < 0 || rotation >= 360 || !Number.isInteger(rotation)) throw new Error("A rotação deve ser um inteiro entre 0° e 359°.");
-        const radians = rotation * Math.PI / 180;\n        const endX = x + width * Math.cos(radians);\n        const endY = y + width * Math.sin(radians);\n        if (Math.min(x, endX) < 0 || Math.max(x, endX) > venue.width_mm || Math.min(y, endY) < 0 || Math.max(y, endY) > venue.height_mm) throw new Error("A abertura deve ficar dentro dos limites do salão.");
+        const radians = rotation * Math.PI / 180;
+        const endX = x + width * Math.cos(radians);
+        const endY = y + width * Math.sin(radians);
+        if (Math.min(x, endX) < 0 || Math.max(x, endX) > venue.width_mm || Math.min(y, endY) < 0 || Math.max(y, endY) > venue.height_mm) throw new Error("A abertura deve ficar dentro dos limites do salão.");
         const payload = { venue_id: venue.id, x_mm: x, y_mm: y, width_mm: width, height_mm: height, rotation_deg: rotation, opening_type: form.openingType, is_essential: form.essential };
         const result = form.id ? await supabase.from("venue_openings").update(payload).eq("id", form.id) : await supabase.from("venue_openings").insert(payload);
         if (result.error) throw result.error;
