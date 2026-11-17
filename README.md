@@ -62,12 +62,14 @@ Nunca coloque `service_role`, secret keys ou credenciais administrativas em vari
 ## Verificações
 
 ```bash
+npm test
+npm run test:e2e
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-Os comandos estão configurados, mas só devem ser considerados aprovados após execução em ambiente local ou CI.
+O CI do GitHub executa Vitest, Playwright/Chromium, TypeScript, ESLint e build. Os testes de navegador usam respostas Supabase simuladas para validar interações e payloads; eles não substituem um teste de integração em staging contra o banco real e suas políticas RLS.
 
 ## Segurança e dados
 
