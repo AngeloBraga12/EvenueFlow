@@ -3,6 +3,7 @@ import { AuthPage } from "./features/auth/AuthPage";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import { WorkspacePage } from "./features/workspace/WorkspacePage";
 import { VenuesPage } from "./features/venues/VenuesPage";
+import { VenuePlanPage } from "./features/venues/VenuePlanPage";
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<WorkspacePage />} />
         <Route path="/app/saloes" element={<VenuesPage />} />
+        <Route path="/app/saloes/:venueId/planta" element={<VenuePlanPage />} />
         <Route path="/app/*" element={<WorkspacePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
