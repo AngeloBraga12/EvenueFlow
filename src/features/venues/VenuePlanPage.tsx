@@ -304,6 +304,20 @@ export function VenuePlanPage() {
     } finally { setHistoryBusy(false); }
   }
 
+
+  useEffect(()=>{
+    const onKeyDown=(event:KeyboardEvent)=>{
+      const target=event.target as HTMLElement|null;
+      if(target && (target.isContentEditable||["INPUT","TEXTAREA","SELECT"].includes(target.tagName)))return;
+      if(!(event.ctrlKey||event.metaKey))return;
+      const key=event.key.toLowerCase();
+      if(key==="z"){event.preventDefault();void moveHistory(event.shiftKey?"redo":"undo");}
+      else if(key==="y"){event.preventDefault();void moveHistory("redo");}
+    };
+    window.addEventListener("keydown",onKeyDown);
+    return()=>window.removeEventListener("keydown",onKeyDown);
+  },[historyBusy,venue,currentVersion,historyVersions]);
+
   async function applyLayoutOperation(operation:"left"|"center-x"|"right"|"top"|"center-y"|"bottom"|"distribute-x"|"distribute-y") {
     if(!venue || selectedKeys.length<(operation.startsWith("distribute")?3:2)) return;
     const entries=selectedKeys.map(key=>{
@@ -342,7 +356,8 @@ export function VenuePlanPage() {
         setPreviewRect(null);
       }else if(gesture.mode==="wall-point"||gesture.mode==="rotate-wall"){
         const wall=previewWall;
-        if(wall && venue && [wall.start_x_mm,wall.start_y_mm,wall.end_x_mm,wall.end_y_mm].some((v)=>v<0) || wall && venue && (wall.start_x_mm>venue.width_mm||wall.end_x_mm>venue.width_mm||wall.start_y_mm>venue.height_mm||wall.end_y_mm>venue.height_mm)) failure="A parede ultrapassaria os limites do salão.";
+        if(wall && wall.start_x_mm===wall.end_x_mm && wall.start_y_mm===wall.end_y_mm) failure="Uma parede precisa ter comprimento maior que zero.";
+        else if(wall && venue && [wall.start_x_mm,wall.start_y_mm,wall.end_x_mm,wall.end_y_mm].some((v)=>v<0) || wall && venue && (wall.start_x_mm>venue.width_mm||wall.end_x_mm>venue.width_mm||wall.start_y_mm>venue.height_mm||wall.end_y_mm>venue.height_mm)) failure="A parede ultrapassaria os limites do salão.";
         else if(wall){const result=await supabase.from("venue_walls").update({start_x_mm:wall.start_x_mm,start_y_mm:wall.start_y_mm,end_x_mm:wall.end_x_mm,end_y_mm:wall.end_y_mm}).eq("id",gesture.id);if(result.error)failure="Não foi possível salvar a parede.";}
         setPreviewWall(null);
       }else if(gesture.mode==="resize-opening"||gesture.mode==="rotate-opening"){
@@ -391,7 +406,7 @@ export function VenuePlanPage() {
     }
     if(!(await prepareHistory()))return;
     setSaving(true); const results=await Promise.all(jobs); setSaving(false);
-    if(results.some(result=>result.error)) setError("Não foi possível salvar a movimentação. A planta será recarregada.");
+    if(results.some(result=>result.error)){setError("A movimentação foi aplicada parcialmente. O estado foi registrado no histórico para permitir recuperação.");await saveHistory("Movimentação parcial");}
     else await saveHistory("Mover elementos");
     await load();
   }
