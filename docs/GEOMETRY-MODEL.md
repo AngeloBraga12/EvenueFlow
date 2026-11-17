@@ -45,17 +45,38 @@ O contrato é validado na leitura antes da representação visual. A versão ini
 - Aberturas precisam ter largura positiva e permanecer dentro dos limites após aplicação da rotação.
 - Obstáculos e estruturas precisam caber integralmente no salão.
 - Comprimentos informados em metros são convertidos para inteiros em milímetros.
-- Paredes, aberturas, obstáculos e estruturas podem ser editados ou arquivados.
-- O editor atual posiciona elementos por coordenadas numéricas; não oferece arrastar e soltar.
+- Paredes, aberturas, obstáculos e estruturas podem ser editados, movidos e arquivados.
+- Paredes permitem ajuste de extremos e rotação pelo controle de manipulação.
+- Aberturas permitem ajuste de largura e rotação.
+- Retângulos permitem redimensionamento por oito alças e rotação por alça dedicada.
+- Seleção múltipla permite mover, alinhar e distribuir elementos sem perder a geometria relativa.
+- Encaixe em grade de 100 mm pode ser habilitado/desabilitado; a grade visual é independente.
+- Zoom do canvas varia entre 50% e 200%.
 
 ## Limitações conhecidas e próximas decisões
 
 1. A tabela de aberturas não possui uma chave estrangeira para uma parede específica. A posição e rotação são persistidas, mas a associação semântica com a parede ainda precisa de evolução do modelo.
 2. A representação 2D atual é uma planta SVG proporcional, não um CAD completo.
-3. Ainda não há snap, cotas dinâmicas, seleção por arrasto, agrupamento, colisão avançada ou cálculo de circulação.
+3. Ainda não há cotas dinâmicas, seleção por janela, agrupamento lógico persistido, colisão avançada ou cálculo de circulação.
 4. O modelo 3D deverá consumir as mesmas coordenadas e dimensões, sem persistir uma cópia geométrica independente.
 5. A validação de geometria crítica deverá ser reforçada no servidor/banco antes de abrir edição colaborativa ou importação externa.
 
 ## Segurança
 
 As cinco tabelas relacionadas ao espaço têm RLS habilitado e quatro políticas por tabela para leitura, inserção, edição e remoção. As políticas das entidades filhas usam `private.can_read_venue(venue_id)` e `private.can_edit_venue(venue_id)`. O cliente web usa somente a publishable key; nunca usar `service_role` no navegador.
+
+## Manipulação direta no editor 2D
+
+- Os retângulos exibem oito alças de redimensionamento e uma alça de rotação quando selecionados.
+- Paredes exibem alças nos dois extremos e uma alça de rotação em torno do ponto médio.
+- Aberturas exibem alça para alterar largura e alça de rotação.
+- A seleção múltipla é feita com Ctrl/Cmd + clique. Os comandos de alinhamento usam bounding boxes; distribuição exige pelo menos três elementos.
+- As operações são validadas no cliente contra o limite do salão. A política RLS continua sendo a fronteira de autorização no servidor.
+- O histórico geométrico usa project_versions.snapshot com schema_version: 1, kind: venue_geometry, parent_version e os quatro conjuntos de elementos do salão. projects.current_version identifica o cursor atual. Versões anteriores são imutáveis; novas edições após desfazer criam um novo ramo por referência ao pai.
+- Desfazer/refazer restaura os registros com upsert e arquivamento lógico, preservando IDs. A restauração é feita por múltiplas operações REST e não constitui uma transação única; em falha parcial, a interface informa a necessidade de recarregar antes de continuar.
+
+## Testes
+
+- npm test: testes unitários Vitest para redimensionamento, rotação, limites, alinhamento e distribuição.
+- npm run test:e2e: testes Playwright em Chromium para renderização do editor, redimensionamento, rotação, seleção múltipla e navegação no histórico.
+- O workflow .github/workflows/ci.yml executa os testes de unidade e navegador, TypeScript, ESLint e build.
