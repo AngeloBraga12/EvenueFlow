@@ -4,15 +4,26 @@ Remote project: `pfzigswxultqyjahunqo`
 Region: `sa-east-1` (São Paulo)  
 API URL: `https://pfzigswxultqyjahunqo.supabase.co`
 
+## Frontend integration
+
+The client application uses React + TypeScript + Vite. Its typed Supabase client is in `src/lib/supabase/client.ts` and imports `supabase/database.types.ts`.
+
+Configure `.env.local` using the root `.env.example`:
+
+```env
+VITE_SUPABASE_URL=https://pfzigswxultqyjahunqo.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
+```
+
+Only the publishable key belongs in the browser. Never expose a secret/service-role key or OAuth client secret in frontend code, source control, or a `VITE_*` variable.
+
 ## Database types
 
-`database.types.ts` is generated directly from the live Supabase schema. Regenerate it after every schema change:
+`database.types.ts` was generated from the live Supabase schema. Regenerate it after every schema change:
 
 ```bash
 npx supabase gen types typescript --project-id pfzigswxultqyjahunqo --schema public > supabase/database.types.ts
 ```
-
-Use the publishable key in browser applications. Never place a secret/service-role key in frontend code, source control, or any `NEXT_PUBLIC_*` / `VITE_*` variable.
 
 ## Establish migration history
 
@@ -27,28 +38,28 @@ npx supabase db pull venueflow_remote_baseline
 npx supabase migration list
 ```
 
-Review the generated file under `supabase/migrations/` before committing it. The CLI will record the pulled baseline as already applied remotely. Do not run `supabase db reset --linked` against this project: that command is destructive.
+Review the generated file under `supabase/migrations/` before committing it. Do not run `supabase db reset --linked` against this project.
 
-After the baseline is in version control, make future schema changes through reviewed migration files and verify them locally with `npx supabase db reset` before deploying with `npx supabase db push --dry-run` and `npx supabase db push`.
+After the baseline is in version control, make future schema changes through reviewed migration files. Verify locally with `npx supabase db reset`, then use `npx supabase db push --dry-run` and `npx supabase db push` for deployment.
 
 ## Authentication setup
 
-Authentication provider credentials and redirect domains are environment-specific and must not be committed here.
+The frontend currently implements email/password signup and sign-in. Provider credentials and production redirect domains remain environment-specific.
 
-1. In the Supabase Dashboard, open Authentication → URL Configuration.
-2. Set the Site URL to the actual deployed VenueFlow Studio origin once it exists.
-3. Add the exact local development callback, initially `http://localhost:3000/**`, and the deployed callback path used by the app.
-4. Keep email confirmation enabled for production. Configure SMTP before relying on production email delivery.
-5. Enable Google or Microsoft only after creating the corresponding OAuth application and securely entering its client ID/secret in Authentication → Sign In / Providers. Never commit OAuth client secrets.
-6. Test signup, confirmation, login, logout, password recovery, expired sessions, and denied cross-organization access before release.
+1. In Supabase Dashboard, open Authentication → URL Configuration.
+2. For local Vite development, use `http://localhost:5173` as the Site URL and add `http://localhost:5173/**` to allowed redirect URLs.
+3. Set the production Site URL to the deployed VenueFlow Studio origin when it exists.
+4. Keep email confirmation enabled for production and configure SMTP before relying on production email delivery.
+5. Enable Google or Microsoft only after creating the OAuth application and securely entering its client ID/secret in Authentication → Sign In / Providers.
+6. Before release, test signup, confirmation, login, logout, password recovery, expired sessions and denied cross-organization access.
 
-Provider callback URL format:
+Provider callback URL:
 `https://pfzigswxultqyjahunqo.supabase.co/auth/v1/callback`
 
 ## Data API exposure
 
-RLS and SQL grants are already part of the database security model. Data API exposure is a separate project setting. In Project Settings → API → Data API, confirm that `public` is an exposed schema. Keep RLS enabled on every exposed table and do not expose the internal `private` schema.
+RLS and SQL grants are part of the database security model. Data API exposure is a separate project setting. In Project Settings → API → Data API, confirm that `public` is an exposed schema. Keep RLS enabled on every exposed table and do not expose the internal `private` schema.
 
-## Current integration boundary
+## Implementation boundary
 
-This repository is currently an empty application repository with Supabase infrastructure files only. No frontend framework, app routes, UI, or OAuth provider credentials have been assumed or fabricated.
+The frontend foundation and first workspace view exist. The geometric editor, complete venue/event workflows, inventory, optimization, circulation, exports, collaboration and offline synchronization still require implementation and validation.
