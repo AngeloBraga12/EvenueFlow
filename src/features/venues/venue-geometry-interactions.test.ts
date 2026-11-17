@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alignBounds, distributeBounds, rectBounds, rectCorners, resizeRotatedRect, rotatedRectAt } from "./venue-geometry-interactions";
+import { alignBounds, distributeBounds, isRotatedRectInsideVenue, rectBounds, rectCorners, resizeRotatedRect, rotatedRectAt } from "./venue-geometry-interactions";
 import { makeSpatialRect } from "./venue-geometry";
 
 describe("venue geometry interactions", () => {
@@ -27,6 +27,11 @@ describe("venue geometry interactions", () => {
     expect(resized.width_mm).toBeGreaterThan(2000);
     expect(resized.height_mm).toBeGreaterThan(1000);
     expect(rectCorners(resized)).toHaveLength(4);
+  });
+
+  it("validates the full rotated bounding box against venue boundaries", () => {
+    expect(isRotatedRectInsideVenue(makeSpatialRect(1000,1000,2000,1000,45),10000,8000)).toBe(true);
+    expect(isRotatedRectInsideVenue(makeSpatialRect(0,0,2000,1000,45),10000,8000)).toBe(false);
   });
 
   it("aligns bounding boxes on a shared vertical edge", () => {
