@@ -1,6 +1,6 @@
 import "./venues.css";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, Building2, Edit3, Plus, Ruler, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Building2, Edit3, Plus, Ruler, Search, Trash2, DraftingCompass } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { getSupabaseClient } from "../../lib/supabase/client";
@@ -172,7 +172,7 @@ export function VenuesPage() {
               <div className="venue-symbol"><Building2 size={19} /></div>
               <div className="venue-info"><strong>{venue.name}</strong><span>{projectNames.get(venue.project_id) ?? "Projeto indisponível"} · {venue.shape === "rectangle" ? "Retangular" : venue.shape}</span></div>
               <div className="venue-dimensions"><Ruler size={14} /><strong>{(venue.width_mm / 1000).toLocaleString("pt-BR")} × {(venue.height_mm / 1000).toLocaleString("pt-BR")} m</strong><small>{(venue.width_mm * venue.height_mm / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²</small></div>
-              <div className="venue-actions"><button className="icon-action" onClick={() => openEdit(venue)} aria-label={`Editar ${venue.name}`}><Edit3 size={16} /></button><button className="icon-action danger-action" onClick={() => void archiveVenue(venue)} aria-label={`Arquivar ${venue.name}`}><Trash2 size={16} /></button></div>
+              <div className="venue-actions"><Link className="venue-plan-link" to={`/app/saloes/${venue.id}/planta`}><DraftingCompass size={15}/> Abrir planta</Link><button className="icon-action" onClick={() => openEdit(venue)} aria-label={`Editar ${venue.name}`}><Edit3 size={16} /></button><button className="icon-action danger-action" onClick={() => void archiveVenue(venue)} aria-label={`Arquivar ${venue.name}`}><Trash2 size={16} /></button></div>
             </article>)}</div>}
         </section>
       </main>
