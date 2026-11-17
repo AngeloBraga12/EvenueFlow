@@ -62,7 +62,7 @@ async function mockBackend(page: Page) {
     const method = request.method();
     const body = request.postDataJSON?.() as Record<string, unknown> | undefined;
     if (method === "GET") {
-      if (table === "venues") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(venue)});
+      if (table === "venues") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(url.searchParams.get("select")==="id"?[{id:venue.id}]:venue)});
       if (table === "projects") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({current_version:projectVersion})});
       if (table === "venue_obstacles") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(obstacles)});
       if (table === "project_versions") {
