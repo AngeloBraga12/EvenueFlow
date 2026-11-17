@@ -1,5 +1,5 @@
 import "./plan.css";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 import { ArrowLeft, DoorOpen, Layers3, Plus, Ruler, Trash2, Edit3, AlertTriangle, Square, PanelTop, Magnet, Grid3X3, ZoomIn, ZoomOut } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getSupabaseClient } from "../../lib/supabase/client";
@@ -73,7 +73,7 @@ export function VenuePlanPage() {
   const area = useMemo(() => venue ? venue.width_mm * venue.height_mm / 1_000_000 : 0, [venue]);
   function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
   function startCreate(kind: Kind) { setError(""); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
-  function beginCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+  function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
     if (!target || !svgRef.current) return;
     const kind = target.dataset.kind as Kind; const id = target.dataset.id;
@@ -98,10 +98,11 @@ export function VenuePlanPage() {
     setDragDelta({ x, y });
   }
   async function finishCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+    if (!venue) return;
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null; const delta = dragDelta; setDragDelta({ x: 0, y: 0 });
     if (!delta.x && !delta.y) return;
-    const jobs: Array<Promise<any>> = [];
+    const jobs: Array<PromiseLike<any>> = [];
     for (const key of drag.ids) {
       const [kind, id] = key.split(":") as [Kind, string];
       if (kind === "wall") {
