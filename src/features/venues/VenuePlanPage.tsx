@@ -316,7 +316,7 @@ export function VenuePlanPage() {
     };
     window.addEventListener("keydown",onKeyDown);
     return()=>window.removeEventListener("keydown",onKeyDown);
-  },[historyBusy,venue,currentVersion,historyVersions]);
+  },[moveHistory]);
 
   async function applyLayoutOperation(operation:"left"|"center-x"|"right"|"top"|"center-y"|"bottom"|"distribute-x"|"distribute-y") {
     if(!venue || selectedKeys.length<(operation.startsWith("distribute")?3:2)) return;
