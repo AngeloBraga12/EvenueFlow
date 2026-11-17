@@ -22,3 +22,7 @@
 .venue-ceiling{grid-column:1/-1}
 .venue-form-grid label{margin-top:0!important}
 @media(max-width:700px){.venue-toolbar{align-items:stretch;flex-direction:column}.venue-row{flex-wrap:wrap;gap:10px}.venue-info{min-width:calc(100% - 55px)}.venue-dimensions{margin-left:50px}.venue-actions{margin-left:auto}.venue-form-grid{grid-template-columns:1fr 1fr}}
+
+.venue-plan-link{display:flex;align-items:center;gap:6px;padding:0 10px;min-height:34px;border:1px solid #526147;color:var(--lime);font-size:10px;white-space:nowrap}
+.venue-plan-link:hover{background:#2c342d}
+@media(max-width:760px){.venue-row{align-items:flex-start}.venue-plan-link{order:3}}
