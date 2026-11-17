@@ -237,6 +237,16 @@ export function VenuePlanPage() {
     if(!loaded.error)setHistoryVersions(loaded.data??[]);
   }
 
+
+  async function prepareHistory():Promise<boolean>{
+    try{await ensureHistoryBaseline();return true;}
+    catch(cause){setError(cause instanceof Error?cause.message:"Não foi possível iniciar o histórico.");return false;}
+  }
+  async function saveHistory(label:string):Promise<boolean>{
+    try{await recordHistory(label);return true;}
+    catch(cause){setError(cause instanceof Error?cause.message:"A alteração foi salva, mas o histórico não pôde ser atualizado.");return false;}
+  }
+
   function parseHistorySnapshot(row:ProjectVersion):PlanSnapshot|null {
     const value=row.snapshot as unknown as PlanSnapshot;
     return value?.schema_version===1&&value.kind==="venue_geometry"&&value.geometry?value:null;
@@ -247,20 +257,27 @@ export function VenuePlanPage() {
     const snapshot=parseHistorySnapshot(target);
     if(!snapshot) throw new Error("Versão incompatível com o editor de planta.");
     const stamp=new Date().toISOString(),g=snapshot.geometry;
-    const archived=await Promise.all([
-      supabase.from("venue_walls").update({deleted_at:stamp}).eq("venue_id",venue.id),
-      supabase.from("venue_openings").update({deleted_at:stamp}).eq("venue_id",venue.id),
-      supabase.from("venue_obstacles").update({deleted_at:stamp}).eq("venue_id",venue.id),
-      supabase.from("venue_fixed_structures").update({deleted_at:stamp}).eq("venue_id",venue.id)
-    ]);
-    if(archived.some(result=>result.error)) throw new Error("Não foi possível preparar a restauração.");
     const restored=await Promise.all([
       g.walls.length?supabase.from("venue_walls").upsert(g.walls.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
       g.openings.length?supabase.from("venue_openings").upsert(g.openings.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
       g.obstacles.length?supabase.from("venue_obstacles").upsert(g.obstacles.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null}),
       g.structures.length?supabase.from("venue_fixed_structures").upsert(g.structures.map(row=>({...row,deleted_at:null}))):Promise.resolve({error:null})
     ]);
-    if(restored.some(result=>result.error)) throw new Error("A restauração não foi concluída por completo. Recarregue a planta.");
+    if(restored.some(result=>result.error)) throw new Error("A restauração não foi concluída por completo. Os elementos existentes foram preservados.");
+    const [currentWalls,currentOpenings,currentObstacles,currentStructures]=await Promise.all([
+      supabase.from("venue_walls").select("id").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_openings").select("id").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_obstacles").select("id").eq("venue_id",venue.id).is("deleted_at",null),
+      supabase.from("venue_fixed_structures").select("id").eq("venue_id",venue.id).is("deleted_at",null)
+    ]);
+    if(currentWalls.error||currentOpenings.error||currentObstacles.error||currentStructures.error)throw new Error("Não foi possível reconciliar os elementos da versão.");
+    const archiveResults=await Promise.all([
+      ...((currentWalls.data??[]).filter(row=>!g.walls.some(targetRow=>targetRow.id===row.id)).map(row=>supabase.from("venue_walls").update({deleted_at:stamp}).eq("id",row.id))),
+      ...((currentOpenings.data??[]).filter(row=>!g.openings.some(targetRow=>targetRow.id===row.id)).map(row=>supabase.from("venue_openings").update({deleted_at:stamp}).eq("id",row.id))),
+      ...((currentObstacles.data??[]).filter(row=>!g.obstacles.some(targetRow=>targetRow.id===row.id)).map(row=>supabase.from("venue_obstacles").update({deleted_at:stamp}).eq("id",row.id))),
+      ...((currentStructures.data??[]).filter(row=>!g.structures.some(targetRow=>targetRow.id===row.id)).map(row=>supabase.from("venue_fixed_structures").update({deleted_at:stamp}).eq("id",row.id)))
+    ]);
+    if(archiveResults.some(result=>result.error))throw new Error("A versão foi parcialmente restaurada. Recarregue a planta antes de continuar.");
     const updated=await supabase.from("projects").update({current_version:target.version}).eq("id",venue.project_id);
     if(updated.error) throw updated.error;
     currentVersionRef.current=target.version;setCurrentVersion(target.version);
@@ -304,14 +321,16 @@ export function VenuePlanPage() {
       else if(kind==="opening"){const item=openings.find(v=>v.id===id);if(!item)continue;const radians=item.rotation_deg*Math.PI/180,x=item.x_mm+dx,y=item.y_mm+dy,ex=x+item.width_mm*Math.cos(radians),ey=y+item.width_mm*Math.sin(radians);if(Math.min(x,ex)<0||Math.min(y,ey)<0||Math.max(x,ex)>venue.width_mm||Math.max(y,ey)>venue.height_mm){setError("O alinhamento ultrapassaria os limites do salão.");return;}jobs.push(supabase.from("venue_openings").update({x_mm:x,y_mm:y}).eq("id",id));}
       else{const list=kind==="obstacle"?obstacles:structures,item=list.find(v=>v.id===id),rect=item?parseSpatialRect(item.geometry):null;if(!rect)continue;const moved={...rect,x_mm:rect.x_mm+dx,y_mm:rect.y_mm+dy};if(!isRotatedRectInsideVenue(moved,venue.width_mm,venue.height_mm)){setError("O alinhamento ultrapassaria os limites do salão.");return;}jobs.push(kind==="obstacle"?supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id):supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));}
     }
-    await ensureHistoryBaseline();setSaving(true);const results=await Promise.all(jobs);setSaving(false);if(results.some(result=>result.error))setError("Não foi possível concluir a operação em lote.");else{await recordHistory(operation.startsWith("distribute")?"Distribuir elementos":"Alinhar elementos");await load();}
+    if(!(await prepareHistory()))return;setSaving(true);const results=await Promise.all(jobs);setSaving(false);if(results.some(result=>result.error))setError("Não foi possível concluir a operação em lote.");else{await saveHistory(operation.startsWith("distribute")?"Distribuir elementos":"Alinhar elementos");await load();}
   }
 
   async function finishCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     const gesture=handleGestureRef.current;
     if(gesture && gesture.pointerId===event.pointerId){
-      handleGestureRef.current=null;setSaving(true);let failure="";
-      await ensureHistoryBaseline();
+      handleGestureRef.current=null;let failure="";
+      if(!previewRect&&!previewWall&&!previewOpening){setPreviewRect(null);setPreviewWall(null);setPreviewOpening(null);return;}
+      if(!(await prepareHistory())){setPreviewRect(null);setPreviewWall(null);setPreviewOpening(null);return;}
+      setSaving(true);
       if(gesture.mode==="resize-rect"||gesture.mode==="rotate-rect"){
         const rect=previewRect?.rect;
         if(rect && venue && !isRotatedRectInsideVenue(rect,venue.width_mm,venue.height_mm)) failure="O elemento precisa permanecer dentro dos limites do salão.";
@@ -330,17 +349,17 @@ export function VenuePlanPage() {
         if(opening && venue){const angle=opening.rotation_deg*Math.PI/180,ex=opening.x_mm+opening.width_mm*Math.cos(angle),ey=opening.y_mm+opening.width_mm*Math.sin(angle);if(Math.min(opening.x_mm,ex)<0||Math.max(opening.x_mm,ex)>venue.width_mm||Math.min(opening.y_mm,ey)<0||Math.max(opening.y_mm,ey)>venue.height_mm)failure="A abertura ultrapassaria os limites do salão.";else{const result=await supabase.from("venue_openings").update({width_mm:opening.width_mm,rotation_deg:opening.rotation_deg}).eq("id",gesture.id);if(result.error)failure="Não foi possível salvar a abertura.";}}
         setPreviewOpening(null);
       }
-      setSaving(false);if(failure)setError(failure);else {await recordHistory(gesture.mode.includes("resize")?"Redimensionar elemento":"Rotacionar elemento");await load();}return;
+      setSaving(false);if(failure)setError(failure);else {await saveHistory(gesture.mode.includes("resize")?"Redimensionar elemento":"Rotacionar elemento");await load();}return;
     }
     const wallStart = wallStartRef.current;
     if (wallStart && wallStart.pointerId === event.pointerId) {
       const start = wallStart; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
       if (venue && draft && (draft.x1 !== draft.x2 || draft.y1 !== draft.y2)) {
+        if(!(await prepareHistory()))return;
         setSaving(true);
-        await ensureHistoryBaseline();
         const result = await supabase.from("venue_walls").insert({ venue_id:venue.id, start_x_mm:start.x, start_y_mm:start.y, end_x_mm:draft.x2, end_y_mm:draft.y2, thickness_mm:150, height_mm:null, metadata:{label:"Parede"} as Json });
         setSaving(false);
-        if (result.error) setError("Não foi possível criar a parede. Verifique sua permissão."); else { await recordHistory("Desenhar parede"); setDrawingWall(false); await load(); }
+        if (result.error) setError("Não foi possível criar a parede. Verifique sua permissão."); else { await saveHistory("Desenhar parede"); setDrawingWall(false); await load(); }
       }
       return;
     }
@@ -369,10 +388,10 @@ export function VenuePlanPage() {
         jobs.push(kind==="obstacle" ? supabase.from("venue_obstacles").update({geometry:moved as unknown as Json}).eq("id",id) : supabase.from("venue_fixed_structures").update({geometry:moved as unknown as Json}).eq("id",id));
       }
     }
-    await ensureHistoryBaseline();
+    if(!(await prepareHistory()))return;
     setSaving(true); const results=await Promise.all(jobs); setSaving(false);
     if(results.some(result=>result.error)) setError("Não foi possível salvar a movimentação. A planta será recarregada.");
-    else await recordHistory("Mover elementos");
+    else await saveHistory("Mover elementos");
     await load();
   }
   function startEdit(kind: Kind, id: string) {
@@ -400,7 +419,7 @@ export function VenuePlanPage() {
     if (!venue || !form) return;
     setSaving(true); setError("");
     try {
-      await ensureHistoryBaseline();
+      if(!(await prepareHistory()))return;
       const x = parseCoordinate(form.x); const y = parseCoordinate(form.y);
       if (form.kind === "wall") {
         const endX = parseCoordinate(form.endX); const endY = parseCoordinate(form.endY);
@@ -436,7 +455,7 @@ export function VenuePlanPage() {
           if (result.error) throw result.error;
         }
       }
-      await recordHistory(form.id?"Editar elemento":"Adicionar elemento");
+      await saveHistory(form.id?"Editar elemento":"Adicionar elemento");
       setForm(null); await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível salvar o elemento.");
@@ -445,14 +464,14 @@ export function VenuePlanPage() {
 
   async function archive(kind: Kind, id: string) {
     if (!window.confirm("Arquivar este elemento da planta?")) return;
-    await ensureHistoryBaseline();
+    if(!(await prepareHistory()))return;
     const stamp = new Date().toISOString();
     const result = kind === "wall" ? await supabase.from("venue_walls").update({ deleted_at: stamp }).eq("id", id)
       : kind === "opening" ? await supabase.from("venue_openings").update({ deleted_at: stamp }).eq("id", id)
       : kind === "obstacle" ? await supabase.from("venue_obstacles").update({ deleted_at: stamp }).eq("id", id)
       : await supabase.from("venue_fixed_structures").update({ deleted_at: stamp }).eq("id", id);
     if (result.error) setError("Não foi possível arquivar o elemento. Verifique sua permissão.");
-    else { await recordHistory("Arquivar elemento"); setSelected(null); setSelectedKeys([]); await load(); }
+    else { await saveHistory("Arquivar elemento"); setSelected(null); setSelectedKeys([]); await load(); }
   }
 
   const currentHistory=historyVersions.find(row=>row.version===currentVersion);
