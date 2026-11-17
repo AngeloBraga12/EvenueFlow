@@ -146,7 +146,7 @@ export function VenuePlanPage() {
       const local=point.matrixTransform(matrix.inverse());const current={x_mm:local.x,y_mm:local.y};
       if(gesture.mode==="resize-rect" && gesture.rect && gesture.handle){
         const step=snapEnabled?100:1;const delta={x_mm:Math.round((current.x_mm-gesture.start.x_mm)/step)*step,y_mm:Math.round((current.y_mm-gesture.start.y_mm)/step)*step};
-        setPreviewRect({kind:gesture.kind,id:gesture.id,rect:resizeRotatedRect(gesture.rect,gesture.handle,delta)});
+        setPreviewRect({kind:gesture.kind,id:gesture.id,rect:resizeRotatedRect(gesture.rect,gesture.handle as RectHandle,delta)});
       }else if(gesture.mode==="rotate-rect" && gesture.rect){
         setPreviewRect({kind:gesture.kind,id:gesture.id,rect:rotatedRectAt(gesture.rect,current,gesture.initialPointer,gesture.rect.rotation_deg)});
       }else if(gesture.mode==="wall-point" && gesture.wall && gesture.handle){
@@ -229,8 +229,9 @@ export function VenuePlanPage() {
     const snapshot:PlanSnapshot={schema_version:1,kind:"venue_geometry",parent_version:parentVersion,label,geometry};
     const inserted=await supabase.from("project_versions").insert({project_id:venue.project_id,created_by:data.user.id,version,label,snapshot:snapshot as unknown as Json});
     if(inserted.error) throw inserted.error;
-    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",parentVersion);
+    const updated=await supabase.from("projects").update({current_version:version}).eq("id",venue.project_id).eq("current_version",parentVersion).select("id").maybeSingle();
     if(updated.error) throw updated.error;
+    if(!updated.data) throw new Error("O projeto mudou em outra sessão. Recarregue a planta antes de continuar.");
     currentVersionRef.current=version;setCurrentVersion(version);
     const loaded=await supabase.from("project_versions").select("*").eq("project_id",venue.project_id).order("version");
     if(!loaded.error)setHistoryVersions(loaded.data??[]);
