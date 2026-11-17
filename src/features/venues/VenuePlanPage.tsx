@@ -75,7 +75,7 @@ export function VenuePlanPage() {
 
   const area = useMemo(() => venue ? venue.width_mm * venue.height_mm / 1_000_000 : 0, [venue]);
   function keyOf(kind: Kind, id: string) { return `${kind}:${id}`; }
-  function startCreate(kind: Kind) { setError(""); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
+  function startCreate(kind: Kind) { setError(""); setDrawingWall(false); setWallDraft(null); setSelected(null); setSelectedKeys([]); setForm(blankForm(kind)); }
   function beginCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     if (!svgRef.current) return;
     const target = (event.target as Element).closest<SVGGElement>("[data-kind][data-id]");
@@ -119,7 +119,7 @@ export function VenuePlanPage() {
     if (snapEnabled) { x = Math.round(x / 100) * 100; y = Math.round(y / 100) * 100; }
     setDragDelta({ x, y });
   }
-  async function finishCanvasDrag(event: React.PointerEvent<SVGSVGElement>) {
+  async function finishCanvasDrag(event: PointerEvent<SVGSVGElement>) {
     const wallStart = wallStartRef.current;
     if (wallStart && wallStart.pointerId === event.pointerId) {
       const start = wallStart; wallStartRef.current = null; const draft = wallDraft; setWallDraft(null);
