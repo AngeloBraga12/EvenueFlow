@@ -16,6 +16,7 @@ type FormState = { id?: string; kind: Kind; name: string; x: string; y: string; 
 const blankForm = (kind: Kind): FormState => ({ kind, name: "", x: "1", y: "1", endX: "5", endY: "1", width: "1", height: "2.1", thickness: "0.15", ceiling: "", rotation: "0", openingType: "door", essential: false, blocks: true });
 const mm = (value: number) => (value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 const parseMm = (value: string) => metersToMillimeters(Number(value));
+const parseCoordinate = (value: string) => { const n = Number(value); if (!Number.isFinite(n) || n < 0) throw new RangeError("Coordenadas devem ser zero ou positivas."); const result = Math.round(n * 1000); if (!Number.isSafeInteger(result)) throw new RangeError("Coordenada fora do intervalo permitido."); return result; };
 const labelForWall = (wall: Wall, index: number) => {
   const metadata = wall.metadata as Record<string, Json | undefined>;
   return typeof metadata.label === "string" ? metadata.label : `Parede ${String(index + 1).padStart(2, "0")}`;
@@ -88,9 +89,9 @@ export function VenuePlanPage() {
     if (!venue || !form) return;
     setSaving(true); setError("");
     try {
-      const x = parseMm(form.x); const y = parseMm(form.y);
+      const x = parseCoordinate(form.x); const y = parseCoordinate(form.y);
       if (form.kind === "wall") {
-        const endX = parseMm(form.endX); const endY = parseMm(form.endY);
+        const endX = parseCoordinate(form.endX); const endY = parseCoordinate(form.endY);
         const thickness = parseMm(form.thickness);
         const height = form.ceiling.trim() ? parseMm(form.ceiling) : null;
         if (!isPointInsideVenue({ x_mm: x, y_mm: y }, venue.width_mm, venue.height_mm) || !isPointInsideVenue({ x_mm: endX, y_mm: endY }, venue.width_mm, venue.height_mm) || (x === endX && y === endY)) throw new Error("Os pontos da parede devem ser diferentes e estar dentro do salão.");
