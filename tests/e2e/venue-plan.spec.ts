@@ -66,7 +66,9 @@ async function mockBackend(page: Page) {
       if (table === "projects") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify({current_version:projectVersion})});
       if (table === "venue_obstacles") return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(obstacles)});
       if (table === "project_versions") {
-        const data=url.searchParams.get("select")==="version"?versions.map(row=>({version:row.version})):versions;
+        let data=url.searchParams.get("select")==="version"?versions.map(row=>({version:row.version})): [...versions];
+        if(url.searchParams.get("order")==="version.desc")data=[...data].sort((a,b)=>Number(b.version)-Number(a.version));
+        const limit=Number(url.searchParams.get("limit")??0);if(limit>0)data=data.slice(0,limit);
         return route.fulfill({status:200,contentType:"application/json",body:JSON.stringify(data)});
       }
       return route.fulfill({status:200,contentType:"application/json",body:"[]"});
